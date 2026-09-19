@@ -87,12 +87,9 @@ function Run-Browseros {
     Write-Log ("browseros " + ($BrowserArgs -join ' '))
     Write-State -Phase $Phase -PhaseName $PhaseName -Status "running"
 
-    # Build a child env that inherits everything but forces UTF-8 so the
-    # browseros CLI's emoji log lines don't crash on cp1252.
-    $childEnv = @{}
-    [Environment]::GetEnvironmentVariables("Process").Keys | ForEach-Object { $childEnv[$_] = [Environment]::GetEnvironmentVariable($_, "Process") }
-    $childEnv["PYTHONIOENCODING"] = "utf-8"
-    $childEnv["PYTHONUTF8"] = "1"
+    # PS 5.1 doesn't support -Environment on Start-Process. Caller must
+    # pre-set $env:PYTHONIOENCODING=utf-8 (the launch.cmd launcher does this)
+    # so the .NET env block inherited by Start-Process already has it.
 
     $proc = Start-Process -FilePath $BrowserosExe `
         -ArgumentList $BrowserArgs `
@@ -101,7 +98,6 @@ function Run-Browseros {
         -RedirectStandardOutput ($LogFile + ".stdout") `
         -RedirectStandardError  ($LogFile + ".stderr") `
         -PassThru `
-        -Environment $childEnv `
         -Wait
 
     Write-Log ("browseros exit code: " + $proc.ExitCode)
@@ -164,10 +160,9 @@ if (Should-RunPhase 3) {
     Write-Log "=== START phase 3 (build -- autoninja, 6-12 hours) ==="
     Write-State -Phase 3 -PhaseName "build" -Status "running"
 
-    $childEnv = @{}
-    [Environment]::GetEnvironmentVariables("Process").Keys | ForEach-Object { $childEnv[$_] = [Environment]::GetEnvironmentVariable($_, "Process") }
-    $childEnv["PYTHONIOENCODING"] = "utf-8"
-    $childEnv["PYTHONUTF8"] = "1"
+    # PS 5.1 doesn't support -Environment on Start-Process. Caller must
+    # pre-set $env:PYTHONIOENCODING=utf-8 (the launch.cmd launcher does this)
+    # so the .NET env block inherited by Start-Process already has it.
 
     $proc = Start-Process -FilePath $BrowserosExe `
         -ArgumentList @("build", "--build", "--chromium-src", $ChromiumSrc, "-t", "release", "-a", "x64") `
@@ -176,7 +171,6 @@ if (Should-RunPhase 3) {
         -RedirectStandardOutput ($LogFile + ".stdout") `
         -RedirectStandardError  ($LogFile + ".stderr") `
         -PassThru `
-        -Environment $childEnv `
         -Wait
     Write-Log ("build exit code: " + $proc.ExitCode)
     if ($proc.ExitCode -ne 0) {
