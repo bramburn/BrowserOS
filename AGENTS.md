@@ -148,36 +148,73 @@ automation server — **not** the same protocol as port 9200.
 
 ### Build the Chromium browser (slow)
 
+#### Option A: Interactive (simplest — works today)
+
+Run the orchestrator from an interactive PowerShell window, NOT from the
+bash tool (which has a 5-min timeout that would kill mid-build):
+
 ```powershell
-# Install the build CLI
-cd C:\dev\BrowserOs\packages\browseros
-py -m pip install -e .
-
-# Fetch Chromium source via depot_tools (gclient)
-browseros setup
-# ~30-60 min, ~50 GB at C:\browersos-build\src\
-
-# Apply the 342 patches
-browseros apply
-# ~2-5 min
-
-# Build (this is the long one)
-browseros build
-# ~6-12 hours on this Windows box, ~150 GB out/
-
-# Package + sign
-browseros package
-browseros sign
+cd C:\dev\BrowserOs
+$env:PYTHONIOENCODING = "utf-8"
+& C:\dev\BrowserOs\tools\bramburn-build.ps1
+# Default: run all 5 phases (setup -> prep -> build -> sign -> package)
+# -StopAfterPhase 1: setup only (gclient fetch, 30-60 min)
+# -StopAfterPhase 2: setup + prep (~1-2 h)
+# -StopAfterPhase 3: setup + prep + build (the long one, 6-12 h)
 ```
 
-The output binary is `out/Default/chrome.exe`. To replace the installed
-BrowserOS:
-- Backup `C:\Users\bramburn\AppData\Local\browseros\Application\151.0.8162.137\chrome.exe`
-- Copy the build's `chrome.exe` over it
-- Restart BrowserOS (the version mismatch in `server.json` is a known issue;
-  patch the manifest to claim your build's version)
-- Watch for the bundled `browseros_server.exe` — that needs a separate build
-  pipeline OR a substitute that speaks the same JSON-RPC over `/mcp`.
+The orchestrator logs to `C:\temp\browseros-build\browseros-build.log` and
+writes a state JSON to `C:\temp\browseros-build\browseros-build-state.json`
+so you can monitor progress from another shell with `Get-Content`.
+
+#### Option B: Detached (for running overnight)
+
+The detached path uses `C:\temp\browseros-build\detached-phase1.py` to
+spawn the orchestrator. As of 2026-09-19 there's a known issue: `Start-Process
+-Environment` doesn't reliably propagate `PYTHONIOENCODING=utf-8` to the
+grandchild `browseros.exe` (it crashes on the rocket emoji in cp1252). The
+workaround when the detached path fails:
+
+```powershell
+# Run interactively in a separate PowerShell window so it survives logout
+Start-Process powershell.exe -ArgumentList '-NoProfile','-Command','while($true){& C:\dev\BrowserOs\tools\bramburn-build.ps1 -StopAfterPhase 3; "build done, retrying..."; Start-Sleep 60}' -WindowStyle Hidden
+```
+
+#### Build phases (each ~time)
+
+| Phase | Command | Wall time | Disk |
+|---|---|---|---|
+| 1 setup | `browseros build --setup` (gclient + clean) | 30-60 min | +50 GB at `C:\browersos-build\src` |
+| 2 prep | `browseros build --prep` (configure + patches + replace + resources) | 5-15 min | +0 GB |
+| 3 build | `browseros build --build` (autoninja, `-t release -a x64`) | 6-12 h | +100 GB at `C:\browersos-build\src\out` |
+| 4 sign | `browseros build --sign` (sign_windows) | 2-5 min | +0 GB |
+| 5 package | `browseros build --package` (package_windows) | 1-3 min | +0 GB |
+
+Total: 7-13 hours wall time, 150 GB disk, requires the session to stay
+alive or run via detached process.
+
+#### Replacing the installed BrowserOS
+
+After successful build:
+
+```powershell
+$INSTALLED = "C:\Users\bramburn\AppData\Local\browseros\Application\151.0.8162.137"
+$BUILT = "C:\browersos-build\src\out\Default"
+
+# Backup installed browser binary
+Move-Item "$INSTALLED\chrome.exe" "$INSTALLED\chrome.exe.bak"
+
+# Copy our build
+Copy-Item "$BUILT\chrome.exe" "$INSTALLED\chrome.exe"
+
+# Restart BrowserOS (the version mismatch in server.json is a known issue;
+# patch it to claim your build's version)
+```
+
+The bundled `browseros_server.exe` (the MCP server) is NOT replaced by
+this — that binary is precompiled and its source isn't in this fork.
+Either replace it separately (requires source from BrowserOS) or live with
+the published server.
 
 ## What we can deliver in a single session
 
@@ -195,35 +232,17 @@ Given the session time budget:
 
 ### If you want to replace the installed BrowserOS browser (6-12 hours)
 
-```powershell
-# 1. Install build CLI
-cd C:\dev\BrowserOs\packages\browseros
-py -m pip install -e .
+See **"Build the Chromium browser (slow)"** above for two options:
 
-# 2. Start the long build (detached so the bash tool's 5-min timeout doesn't kill it)
-$wrapper = @'
-import os, time, subprocess
-LOG = r'C:\temp\browseros-build.log'
-open(LOG, 'w', encoding='utf-8').write(f'== start {time.strftime("%H:%M:%S")} ==\n')
-proc = subprocess.Popen(
-    ['browseros', 'build'],
-    cwd=r'C:\dev\BrowserOs\packages\browseros',
-    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
-)
-for line in proc.stdout:
-    with open(LOG, 'a', encoding='utf-8') as f: f.write(line)
-proc.wait()
-with open(LOG, 'a', encoding='utf-8') as f: f.write(f'EXIT {proc.returncode}\n')
-'@
-Set-Content -Path 'C:\temp\browseros-build-wrapper.py' -Value $wrapper -Encoding UTF8
-Start-Process -FilePath 'py' -ArgumentList 'C:\temp\browseros-build-wrapper.py' `
-  -WindowStyle Hidden `
-  -RedirectStandardOutput 'C:\temp\browseros-build-stdout.log' `
-  -RedirectStandardError 'C:\temp\browseros-build-stderr.log'
-```
+- **Option A (interactive)** — run `bramburn-build.ps1` from a real PowerShell
+  window. Works today, fully debugged. Best for "let it run overnight".
+- **Option B (detached)** — uses `detached-phase1.py`. Has a known issue with
+  `Start-Process -Environment` not reliably propagating `PYTHONIOENCODING=utf-8`
+  to the browseros.exe grandchild. Needs another iteration before it's reliable.
 
-Then monitor with `Get-Process py` and the log file. On this machine
-expect ~6-12 hours.
+For the immediate next session, recommend Option A from a separate
+PowerShell window — start it before logging out, let it run overnight,
+come back to a built Chromium at `C:\browersos-build\src\out\Default\chrome.exe`.
 
 ### If you just want to patch the MCP server
 
