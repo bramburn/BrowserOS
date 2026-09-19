@@ -49,27 +49,35 @@ What we HAVE done:
   in `AGENTS.md`.
 - ✅ Audited the host toolchain — VS2022 + Win10 SDK + depot_tools + Rust + Bun
   + Python are all present; Chromium build is viable (but slow).
+- ✅ Captured the live MCP tool spec to
+  [`docs/MCP_TOOL_SPEC.md`](docs/MCP_TOOL_SPEC.md) so the eventual MCP
+  work has a canonical reference.
 
 ## What comes next
 
-In order of priority:
+The full strategic ordering is in [`README.md`](README.md) § "Strategic
+roadmap" and [`AGENTS.md`](AGENTS.md) § "Strategic roadmap". The short
+version:
 
-1. **Decide on the bundled MCP server source**. Either:
-   - (a) get browseros-ai to publish the bundled server source (open issue
-     + PR against their public repo), OR
-   - (b) reverse-engineer the controller CRX
-     (`nlnihljpboknmfagkikhkdblbedophja.crx`) to extract the protocol,
-   - (c) build a substitute `apps/server`-based MCP server that speaks the
-     old protocol and translates to the new one.
+| # | Priority | Notes |
+|---|---|---|
+| 1 | Auto-update like Edge / Chrome | **Gating** — we cannot ship fast until this works. |
+| 2 | Browser robustness / stability | Crash reporter + 24 h soak + session restore. |
+| 3 | Installation UX / UI | First-run wizard, About page, honest uninstall. |
+| 4 | Custom Docusaurus site | Fork-specific docs at `docs-site/`. |
+| 5 | MCP / agent hardening | **Deferred** until #1–#4 are shippable. |
 
-2. **Start the Chromium build** (6-12 hours on this box).
-   Use the `Start-Process -WindowStyle Hidden` pattern in `AGENTS.md`
-   § "Recommended path" to keep it alive past the bash tool's 5-min timeout.
-   Monitor via mavis cron every 30 min; report completion via the LLM.
+Two preconditions cut across all priorities:
 
-3. **Land backwards-compat shims upstream**. Once we have patches, file
-   PRs against `browseros-ai/BrowserOS` so the next BrowserOS release
-   doesn't break wrappers again.
+1. **Finish the Chromium build** (6-13 h wall, 150 GB disk) — needed for
+   every priority above. Use the `Start-Process -WindowStyle Hidden`
+   pattern in `AGENTS.md` § "Build the Chromium browser" to keep it
+   alive past the bash tool's 5-min timeout. Monitor via mavis cron every
+   15 min; report completion via the LLM.
+
+2. **Land patches upstream** — anything genuinely an improvement goes
+   back to `browseros-ai/BrowserOS` as a PR, ideally after running in
+   this fork for a few weeks first. The fork is the staging ground.
 
 ## License
 

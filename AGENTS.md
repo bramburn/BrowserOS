@@ -12,6 +12,34 @@ See `WHY_FORK.md` (added 2026-09-19) for the motivation.
 - **Build pipeline**: Python CLI (`packages/browseros/`) that fetches Chromium 146 + applies ~342 patches + builds via ninja (6-12 h on this Windows box)
 - **Bun MCP server** (`packages/browseros-agent/apps/server`): source is here, builds in 2-5 min, used by BrowserOS neo (not bundled with the browser)
 
+## Strategic roadmap — read this before any non-trivial work
+
+The fork's near-term focus is **bottom-up** and **gated**. Before touching
+anything else, internalise this ordering:
+
+| # | Priority | Why it's first |
+|---|---|---|
+| **1** | **Auto-update like Edge / Chrome** | Gating dependency — we cannot ship fast until updates Just Work. |
+| **2** | **Browser robustness / stability** | A crashing browser is worse than no browser. |
+| **3** | **Installation UX / UI** | First-run matters; current installer is a thin mini_installer wrapper. |
+| **4** | **Custom Docusaurus site** | `docs-site/` for fork-specific docs (build, update server, release process). |
+| 5 | MCP + agent hardening | **Deferred** until #1–#4 are shippable. |
+
+**Rule for any coding agent working in this repo:**
+
+- If a change relates to MCP / agent work and #1–#4 are not yet shippable,
+  stop and surface the conflict to the user. Do not silently land agent
+  patches against a moving browser target.
+- "Shippable" for #1 means: end-to-end test of "ship v1 → ship v2 to
+  update server → restart-into-v2 with tabs intact" passes.
+- "Shippable" for #2 means: 24 h soak test on a clean profile passes
+  without a crash; session restore verified across hard kill.
+- "Shippable" for #3 means: a fresh user can install, import data from
+  Chrome, and reach the default new-tab page in <60 s with no surprises.
+
+See [`README.md`](README.md) § "Strategic roadmap" for the full version
+with concrete deliverables per priority.
+
 ## Architecture
 
 ```
@@ -73,7 +101,12 @@ But the actual MCP server (the JSON-RPC handlers for `tabs`, `act`, `snapshot`,
 on port 9200, we need either the private source OR to rebuild the controller
 CRX from source. Neither is in this shallow clone.
 
-## Today's breakage (2026-09-19) — what we want to fix
+## Today's breakage (2026-09-19) — context for eventual MCP work
+
+**Note**: per the strategic roadmap above, MCP / agent hardening is
+**deferred** until priorities #1–#4 are shippable. This section is kept as
+a reference for when we get to priority #5. Do not start fixing any of
+this without first confirming the user has unblocked MCP work.
 
 BrowserOS 0.50.5 / MCP server 0.0.165 (released ~16-Sep-2026) shipped several
 changes that broke wrappers in `C:\dev\browser-cli`:
@@ -218,49 +251,71 @@ the published server.
 
 ## What we can deliver in a single session
 
-Given the session time budget:
+Given the session time budget and the strategic roadmap above:
 
 1. ✅ **Fork + clone** (done — public at `bramburn/BrowserOS`, local at `C:\dev\BrowserOs`)
 2. ✅ **Audit host toolchain** (done — see table above)
 3. ✅ **Architectural review** (done — see diagrams)
-4. ✅ **Document today's breakage** (this file)
-5. ⏳ **Start Chromium build** — long-running, monitor via cron
-6. ❌ **Build the bundled `browseros_server.exe` from source** — source not in this fork
-7. ❌ **Replace installed BrowserOS** — requires successful Chromium build
+4. ✅ **Document today's breakage** (this file; MCP work deferred per roadmap)
+5. ✅ **Update README + AGENTS + WHY_FORK** to reflect the strategic priorities
+6. ⏳ **Start Chromium build** — long-running, monitor via cron (prereereq for #1 stability + #2 auto-update)
+7. ❌ **Build the bundled `browseros_server.exe` from source** — source not in this fork; revisit only when MCP work is unblocked
+8. ❌ **Replace installed BrowserOS** — requires successful Chromium build
 
-## Recommended path
+## Recommended path (matches the strategic roadmap)
 
-### If you want to replace the installed BrowserOS browser (6-12 hours)
+### Priority #1 — auto-update like Edge / Chrome (gating)
 
-See **"Build the Chromium browser (slow)"** above for two options:
+Before writing any auto-update code:
 
-- **Option A (interactive)** — run `bramburn-build.ps1` from a real PowerShell
-  window. Works today, fully debugged. Best for "let it run overnight".
-- **Option B (detached)** — uses `detached-phase1.py`. Has a known issue with
-  `Start-Process -Environment` not reliably propagating `PYTHONIOENCODING=utf-8`
-  to the browseros.exe grandchild. Needs another iteration before it's reliable.
+1. Confirm `bramburn-build.ps1` has produced a working Chromium at
+   `C:\browersos-build\src\out\Default\chrome.exe`.
+2. Audit the update URL config in the patches:
+   `packages/browseros/chromium_patches/chrome/browser/browseros/server/` and
+   any `components/update_client/` overrides. Identify every place the
+   upstream update server URL is hard-coded.
+3. Stand up a tiny nginx + signed-payload server in `tools/update-server/`
+   (out of scope until #6 above completes).
+4. Replace the URL + signing key with our own.
+5. End-to-end test: ship v1 → ship v2 → restart-into-v2 with tabs intact.
 
-For the immediate next session, recommend Option A from a separate
-PowerShell window — start it before logging out, let it run overnight,
-come back to a built Chromium at `C:\browersos-build\src\out\Default\chrome.exe`.
+### Priority #2 — browser robustness
 
-### If you just want to patch the MCP server
+After #1 is shippable:
 
-The bundled `browseros_server.exe` is not in this fork, so we can't patch it
-directly. The realistic options are:
+- Wire the existing Chromium crash reporter (`components/crash/`) to our
+  own backend (e.g. `sentry.io` or a self-hosted `crashpad` collector).
+- Add a 24 h soak test profile and run it on every CI nightly.
+- Verify session restore across hard kill (`taskkill /F` on `chrome.exe`).
 
-a. **Reverse-engineer the CRX**: extract `nlnihljpboknmfagkikhkdblbedophja.crx`
-   from the installed app, find the JSON-RPC handlers, identify the protocol
-   versions, and propose patches to the BrowserOS team via PR.
+### Priority #3 — installation UX / UI
 
-b. **Substitute**: build `apps/server` (Bun MCP server), point it at the
-   installed Chromium's CDP port (9101), expose a backwards-compat layer
-   that translates the old `evaluate`/`window`/`tabs.select` calls into
-   the new `run`/`windows`/`act.focus` calls. Run it on port 9200 (kill
-   the bundled one first, or use a different port and tell clients).
+After #2 is shippable:
 
-c. **Wait for upstream**: file an issue at `browseros-ai/BrowserOS`
-   asking for backwards-compat shims in the bundled MCP server.
+- Audit `packages/browseros/chromium_patches/chrome/installer/`.
+- Walk through the current install on a clean VM, time it, screenshot it,
+  file the gaps.
+- Patch the mini_installer flow with first-run wizard + data import.
+
+### Priority #4 — Docusaurus site
+
+Can start in parallel with #1 once we have the fork public:
+
+- Scaffold `docs-site/` with Docusaurus 3 classic.
+- Mirror `AGENTS.md`, `WHY_FORK.md`, and `docs/MCP_TOOL_SPEC.md` into the
+  Docusaurus content tree.
+- Wire CI to deploy on every merge to `main`.
+
+### Priority #5 — MCP / agent hardening (only after #1–#4 ship)
+
+**Deferred.** When the user unblocks MCP work:
+
+- Either get upstream to publish the bundled server source (open issue +
+  PR against `browseros-ai/BrowserOS`), OR
+- Reverse-engineer the controller CRX
+  (`nlnihljpboknmfagkikhkdblbedophja.crx`) to extract the protocol, OR
+- Build a substitute `apps/server`-based MCP server that speaks the old
+  protocol and translates to the new one.
 
 ## Files to know
 

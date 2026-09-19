@@ -1,226 +1,220 @@
 <div align="center">
-<img width="693" height="379" alt="github-banner" src="https://github.com/user-attachments/assets/1e37941c-4dbc-4662-9c8c-3bbe9971301d" />
 
-<br></br>
-[![Discord](https://img.shields.io/badge/Discord-Join%20us-blue)](https://discord.gg/YKwjt5vuKr)
-[![Slack](https://img.shields.io/badge/Slack-Join%20us-4A154B?logo=slack&logoColor=white)](https://dub.sh/browserOS-slack)
+# `bramburn/BrowserOS`
+
+### A self-hostable Chromium fork with an Edge/Chrome-grade auto-update workflow.
+
+[![Upstream](https://img.shields.io/badge/upstream-browseros--ai%2FBrowserOS-blue)](https://github.com/browseros-ai/BrowserOS)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
-[![Docs](https://img.shields.io/badge/Docs-docs.browseros.com-blue)](https://docs.browseros.com)
-<br></br>
-<a href="https://files.browseros.com/download/BrowserOS.dmg">
-  <img src="https://img.shields.io/badge/Download-macOS-black?style=flat&logo=apple&logoColor=white" alt="Download for macOS (beta)" />
-</a>
-<a href="https://files.browseros.com/download/BrowserOS_installer.exe">
-  <img src="https://img.shields.io/badge/Download-Windows-0078D4?style=flat&logo=windows&logoColor=white" alt="Download for Windows (beta)" />
-</a>
-<a href="https://files.browseros.com/download/BrowserOS.AppImage">
-  <img src="https://img.shields.io/badge/Download-Linux-FCC624?style=flat&logo=linux&logoColor=black" alt="Download for Linux (beta)" />
-</a>
-<a href="https://cdn.browseros.com/download/BrowserOS.deb">
-  <img src="https://img.shields.io/badge/Download-Debian-D70A53?style=flat&logo=debian&logoColor=white" alt="Download Debian package" />
-</a>
-<br /><br />
-
-Founders — [@nv_sonti](https://x.com/intent/user?screen_name=nv_sonti) and [@ThatNithin](https://x.com/intent/user?screen_name=ThatNithin):
-
-[![Twitter Follow](https://img.shields.io/twitter/follow/nv_sonti?style=social)](https://x.com/intent/user?screen_name=nv_sonti)
-&emsp;&emsp;&emsp;
-[![Twitter Follow](https://img.shields.io/twitter/follow/ThatNithin?style=social)](https://x.com/intent/user?screen_name=ThatNithin)
+[![Build status](https://img.shields.io/badge/build-pending-lightgrey)](docs/MCP_TOOL_SPEC.md)
 
 </div>
 
-BrowserOS is an open-source Chromium fork that runs AI agents natively. **The privacy-first alternative to ChatGPT Atlas, Perplexity Comet, and Dia.**
+This is a public fork of [browseros-ai/BrowserOS](https://github.com/browseros-ai/BrowserOS)
+maintained for **self-hosted use** and **release-cadence resilience**. We use
+BrowserOS as the runtime for our own browser-automation CLI
+([`C:\dev\browser-cli`](../browser-cli)), and every upstream release has
+historically broken our wrappers within a week. This fork exists so we can
+ship backwards-compat shims, ship our own updates on our own cadence, and
+contribute the patches back to upstream.
 
-Use your own API keys or run local models with Ollama. Your data never leaves your machine.
+See [`WHY_FORK.md`](WHY_FORK.md) for the full motivation and
+[`AGENTS.md`](AGENTS.md) for the runbook (architecture, build pipeline,
+toolchain, MCP tool spec).
 
-> **[Documentation](https://docs.browseros.com)** · **[Discord](https://discord.gg/YKwjt5vuKr)** · **[Slack](https://dub.sh/browserOS-slack)** · **[Twitter](https://x.com/browserOS_ai)** · **[Feature Requests](https://github.com/browseros-ai/BrowserOS/issues/99)**
+---
 
-## Quick Start
+## Strategic roadmap — what we're working on, in order
 
-1. **Download and install** BrowserOS — [macOS](https://files.browseros.com/download/BrowserOS.dmg) · [Windows](https://files.browseros.com/download/BrowserOS_installer.exe) · [Linux (AppImage)](https://files.browseros.com/download/BrowserOS.AppImage) · [Linux (Debian)](https://cdn.browseros.com/download/BrowserOS.deb)
-2. **Import your Chrome data** (optional) — bookmarks, passwords, extensions all carry over
-3. **Connect your AI provider** — Claude, OpenAI, Gemini, ChatGPT Pro via OAuth, or local models via Ollama/LM Studio
+We build bottom-up. The goal is a fork that ships like Edge or Chrome:
+**boring, automatic, never blocks you**. Everything else comes after that
+foundation is solid.
 
-## Features
+### #1 — A proper auto-update workflow that works like Edge / Chrome *(highest priority)*
 
-| Feature | Description | Docs |
-|---------|-------------|------|
-| **AI Agent** | 53+ browser automation tools — navigate, click, type, extract data, all with natural language | [Guide](https://docs.browseros.com/getting-started) |
-| **MCP Server** | Control the browser from Claude Code, Gemini CLI, or any MCP client | [Setup](https://docs.browseros.com/features/use-with-claude-code) |
-| **Workflows** | Build repeatable browser automations with a visual graph builder | [Docs](https://docs.browseros.com/features/workflows) |
-| **Cowork** | Combine browser automation with local file operations — research the web, save reports to your folder | [Docs](https://docs.browseros.com/features/cowork) |
-| **Scheduled Tasks** | Run agents on autopilot — daily, hourly, or every few minutes | [Docs](https://docs.browseros.com/features/scheduled-tasks) |
-| **Memory** | Persistent memory across conversations — your assistant remembers context over time | [Docs](https://docs.browseros.com/features/memory) |
-| **SOUL.md** | Define your AI's personality and instructions in a single markdown file | [Docs](https://docs.browseros.com/features/soul-md) |
-| **LLM Hub** | Compare Claude, ChatGPT, and Gemini responses side-by-side on any page | [Docs](https://docs.browseros.com/features/llm-chat-hub) |
-| **40+ App Integrations** | Gmail, Slack, GitHub, Linear, Notion, Figma, Salesforce, and more via MCP | [Docs](https://docs.browseros.com/features/connect-apps) |
-| **Vertical Tabs** | Side-panel tab management — stay organized even with 100+ tabs open | [Docs](https://docs.browseros.com/features/vertical-tabs) |
-| **Ad Blocking** | uBlock Origin + Manifest V2 support — [10x more protection](https://docs.browseros.com/features/ad-blocking) than Chrome | [Docs](https://docs.browseros.com/features/ad-blocking) |
-| **Cloud Sync** | Sync browser config and agent history across devices | [Docs](https://docs.browseros.com/features/sync) |
-| **Skills** | Custom instruction sets that shape how your AI assistant behaves | [Docs](https://docs.browseros.com/features/skills) |
-| **Smart Nudges** | Contextual suggestions to connect apps and use features at the right moment | [Docs](https://docs.browseros.com/features/smart-nudges) |
+> "We can ship fast only once the update story works end-to-end."
 
-## Demos
+Right now BrowserOS ships updates out-of-band (manual download from
+`files.browseros.com`) — that's not shippable. We want the same UX you get
+from Edge or Chrome:
 
-### BrowserOS agent in action
-[![BrowserOS agent in action](docs/videos/browserOS-agent-in-action.gif)](https://www.youtube.com/watch?v=SoSFev5R5dI)
-<br/><br/>
+- **Background download** while the browser is in use.
+- **"Update available — restart to update"** toast on a quiet moment.
+- **Restart-and-keep-tabs** so the user never loses context.
+- **Signed delta updates** — small payloads, fast apply.
+- **Staged rollout** — internal ring → beta ring → stable ring, with
+  kill-switch via a server config we control.
+- **Update self-host** — point our fork's update URL at our own server so we
+  are not pinned to upstream's release schedule.
 
-### Install [BrowserOS as MCP](https://docs.browseros.com/features/use-with-claude-code) and control it from `claude-code`
+The Chromium update machinery (`components/update_client`, Omaha 4 protocol,
+`GoogleUpdate` setup on Windows) is already wired into the fork — it just
+points at upstream's URL and signing keys. The work is:
 
-https://github.com/user-attachments/assets/c725d6df-1a0d-40eb-a125-ea009bf664dc
+1. Replace the update URL with our own server (nginx + signed payloads).
+2. Sign our own payloads with a fork-owned key.
+3. Patch the toast + restart flow so it matches Edge/Chrome UX.
+4. End-to-end test: ship v1 → ship v2 to update server → click "restart to
+   update" → restart into v2 with all tabs intact.
 
-<br/><br/>
+This is the **gating dependency** for everything below. Until updates Just
+Work, we cannot ship weekly.
 
-### Use BrowserOS to chat
+### #2 — Make the browser robust
 
-https://github.com/user-attachments/assets/726803c5-8e36-420e-8694-c63a2607beca
+A browser that crashes weekly is worse than no browser. Priority work:
 
-<br/><br/>
+- Crash reporter wired to our own backend so we see field crashes ourselves.
+- Session restore proven across hard kills (`kill -9` / BSOD / power loss).
+- Bookmark / password / extension data survives update + rollback.
+- Memory: no leaks past 24 h of normal use; aggressive tab discard policy.
+- Renderer sandbox escapes caught and reported.
+- Reproducible builds (same source → same binary hash) so we trust the
+  signed delta.
 
-### Use BrowserOS to scrape data
+### #3 — Installation UX / UI
 
-https://github.com/user-attachments/assets/9f038216-bc24-4555-abf1-af2adcb7ebc0
+The current installer is a fairly thin wrapper around the Chromium
+mini_installer. We want:
 
-<br/><br/>
+- First-run experience that is actually a first-run experience: import from
+  Chrome / Edge / Firefox, ask about default browser, walk through the AI
+  agent onboarding without overwhelming.
+- A real "About" / "What's new" page driven by the update server's
+  release notes — no more out-of-band blog posts.
+- Uninstall that is honest about what stays behind (user data) and what
+  is removed (the binary).
+- Telemetry opt-in / opt-out that is clear and one click.
 
-## Install `browseros-cli`
+### #4 — Custom Docusaurus site for the fork
 
-Use `browseros-cli` to launch and control BrowserOS from the terminal or from AI coding agents like Claude Code.
+`docs.browseros.com` is upstream's docs site. We need our own:
 
-**macOS / Linux:**
+- Lives in [`docs-site/`](docs-site/) in this repo (Docusaurus 3 classic).
+- Documents only the **fork-specific** behaviour: the update server config,
+  the build pipeline, the MCP tool spec (fork-specific additions only),
+  the release process.
+- Deployed automatically by CI on every merge to `main`.
+- Versioned alongside the fork's releases.
 
-```bash
-curl -fsSL https://cdn.browseros.com/cli/install.sh | bash
-```
+### #5 (later) — MCP and agent improvements
 
-**Windows:**
+The bundled MCP server (`browseros_server.exe`) and the Bun MCP server
+(`packages/browseros-agent/apps/server`) both work today, but we have a
+known breakage history on every upstream release (see `WHY_FORK.md`). Once
+the foundation above is solid, we tackle:
 
-```powershell
-irm https://cdn.browseros.com/cli/install.ps1 | iex
-```
+- Pin the JSON-RPC schema with a versioned, backwards-compat shim so the
+  next upstream release doesn't break our CLI.
+- Add the missing tool docs and tool discovery UX.
+- Hardening the agent loop (timeouts, retries, observable traces).
 
-After install, run `browseros-cli init` to connect the CLI to your running BrowserOS instance.
+> **Do not start MCP/agent work until #1–#4 are shippable.** Otherwise we
+> will be patching agent behaviour against a moving browser target.
 
-## LLM Providers
+---
 
-BrowserOS works with any LLM. Bring your own keys, use OAuth, or run models locally.
-
-| Provider | Type | Auth |
-|----------|------|------|
-| Kimi K2.5 | Cloud (default) | Built-in |
-| ChatGPT Pro/Plus | Cloud | [OAuth](https://docs.browseros.com/features/chatgpt) |
-| GitHub Copilot | Cloud | [OAuth](https://docs.browseros.com/features/github-copilot) |
-| Qwen Code | Cloud | [OAuth](https://docs.browseros.com/features/qwen-code) |
-| Claude (Anthropic) | Cloud | API key |
-| GPT-4o / o3 (OpenAI) | Cloud | API key |
-| Gemini (Google) | Cloud | API key |
-| Azure OpenAI | Cloud | API key |
-| AWS Bedrock | Cloud | IAM credentials |
-| OpenRouter | Cloud | API key |
-| Ollama | Local | [Setup](https://docs.browseros.com/features/ollama) |
-| LM Studio | Local | [Setup](https://docs.browseros.com/features/lm-studio) |
-
-## How We Compare
-
-| | BrowserOS | Chrome | Brave | Dia | Comet | Atlas |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| Open Source | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| AI Agent | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ |
-| MCP Server | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Visual Workflows | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Cowork (files + browser) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Scheduled Tasks | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Bring Your Own Keys | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| Local Models (Ollama) | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| Local-first Privacy | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| Ad Blocking (MV2) | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ |
-
-**Detailed comparisons:**
-- [BrowserOS vs Chrome DevTools MCP](https://docs.browseros.com/comparisons/chrome-devtools-mcp) — developer-focused comparison for browser automation
-- [BrowserOS vs Claude Cowork](https://docs.browseros.com/comparisons/claude-cowork) — getting real work done with AI
-- [BrowserOS vs OpenClaw](https://docs.browseros.com/comparisons/openclaw) — everyday AI assistance
-
-## Architecture
-
-BrowserOS is a monorepo with two main subsystems: the **browser** (Chromium fork) and the **agent platform** (TypeScript/Go).
+## What this fork contains
 
 ```
-BrowserOS/
-├── packages/browseros/              # Chromium fork + build system (Python)
-│   ├── chromium_patches/            # Patches applied to Chromium source
-│   ├── build/                       # Build CLI and modules
-│   └── resources/                   # Icons, entitlements, signing
+bramburn/BrowserOS/
+├── packages/browseros/              # Chromium fork + build system (Python CLI)
+│   ├── chromium_patches/            # ~342 patches layered on Chromium 146
+│   ├── build/                       # Build orchestrator (setup / prep / build / sign / package)
+│   └── resources/                   # Icons, entitlements, signing assets
 │
-├── packages/browseros-agent/        # Agent platform (TypeScript/Go)
+├── packages/browseros-agent/        # Agent platform (TypeScript / Go)
 │   ├── apps/
-│   │   ├── server/                  # MCP server + AI agent loop (Bun)
+│   │   ├── server/                  # Bun MCP server + AI agent loop (port 9100)
 │   │   ├── agent/                   # Browser extension UI (WXT + React)
-│   │   ├── cli/                     # CLI tool (Go)
+│   │   ├── cli/                     # CLI tool (browseros-cli, Go)
 │   │   ├── eval/                    # Benchmark framework
-│   │   └── controller-ext/          # Chrome API bridge extension
+│   │   └── controller-ext/          # Chrome API bridge extension (source of bundled MCP server)
 │   │
 │   └── packages/
-│       ├── agent-sdk/               # Node.js SDK (npm: @browseros-ai/agent-sdk)
+│       ├── agent-sdk/               # Node.js SDK
 │       ├── cdp-protocol/            # CDP type bindings
 │       └── shared/                  # Shared constants
+│
+├── docs/                            # Markdown docs (in-repo)
+│   └── MCP_TOOL_SPEC.md             # Canonical 24-tool spec, captured live from port 9200
+│
+├── docs-site/                       # (planned) Docusaurus site for fork-specific docs
+│
+├── tools/
+│   └── bramburn-build.ps1           # 5-phase Chromium-from-source orchestrator
+│
+├── AGENTS.md                        # Runbook for AI coding agents working on the fork
+├── WHY_FORK.md                      # Motivation, scope, and what comes next
+├── CONTRIBUTING.md                  # (upstream) — how to contribute
+└── LICENSE                          # AGPL-3.0
 ```
 
-| Package | What it does |
-|---------|-------------|
-| [`packages/browseros`](packages/browseros/) | Chromium fork — patches, build system, signing |
-| [`apps/server`](packages/browseros-agent/apps/server/) | Bun server exposing 53+ MCP tools and running the AI agent loop |
-| [`apps/agent`](packages/browseros-agent/apps/agent/) | Browser extension — new tab, side panel chat, onboarding, settings |
-| [`apps/cli`](packages/browseros-agent/apps/cli/) | Go CLI — control BrowserOS from the terminal or AI coding agents |
-| [`apps/eval`](packages/browseros-agent/apps/eval/) | Benchmark framework — WebVoyager, Mind2Web evaluation |
-| [`agent-sdk`](packages/browseros-agent/packages/agent-sdk/) | Node.js SDK for browser automation with natural language |
-| [`cdp-protocol`](packages/browseros-agent/packages/cdp-protocol/) | Type-safe Chrome DevTools Protocol bindings |
+The bundled MCP server (`browseros_server.exe`, 92 MB, version 0.0.165,
+listens on `http://127.0.0.1:9200/mcp`) is **precompiled** into the shipped
+BrowserOS app and its source is **not** in this public fork. The C++ side
+that launches and supervises the subprocess
+(`chrome/browser/browseros/server/`) **is** in this fork. See
+[`AGENTS.md`](AGENTS.md) § "Bundled MCP server source" for the full
+picture.
+
+---
+
+## Building this fork
+
+| What | Where | Time | Notes |
+|---|---|---|---|
+| Bun MCP server | `packages/browseros-agent/apps/server` | 2-5 min | `bun install && bun run build` |
+| Chromium browser + bundled MCP | `packages/browseros/` via `tools/bramburn-build.ps1` | 6-13 h wall, 150 GB disk | 5 phases: setup → prep → build → sign → package |
+
+**Prerequisites** (verified on this host 2026-09-19): VS2022 Community,
+Windows 10 SDK 10.0.26100, `depot_tools` (with ninja), Rust + cargo, Bun
+1.4+, Python 3.12.
+
+Full build instructions, the two execution paths (interactive vs detached),
+and the per-phase wall-time estimates are in
+[`AGENTS.md`](AGENTS.md) § "Build the Chromium browser".
+
+---
 
 ## Contributing
 
-We'd love your help making BrowserOS better! See our [Contributing Guide](CONTRIBUTING.md) for details.
+We contribute **upwards**: anything we land here that is genuinely an
+improvement goes back to `browseros-ai/BrowserOS` as a PR. AGPL-3.0 applies
+in both directions.
 
-- [Report bugs](https://github.com/browseros-ai/BrowserOS/issues)
-- [Suggest features](https://github.com/browseros-ai/BrowserOS/issues/99)
-- [Join Discord](https://discord.gg/YKwjt5vuKr) · [Join Slack](https://dub.sh/browserOS-slack)
-- [Follow on Twitter](https://x.com/browserOS_ai)
+Before opening a PR upstream, please:
 
-**Agent development** (TypeScript/Go) — see the [agent monorepo README](packages/browseros-agent/README.md) for setup instructions.
+1. Open an issue here in `bramburn/BrowserOS` describing the change.
+2. Land it in our fork first so we can run it against our internal users.
+3. Then open the upstream PR with a note "this has been running in our
+   fork for N weeks".
 
-**Browser development** (C++/Python) — requires ~100GB disk space. See [`packages/browseros`](packages/browseros/) for build instructions.
+This protects upstream from being a guinea pig for our changes.
 
-## Credits
+For **fork-only** work (build pipeline, update server config, Docusaurus
+site, release tooling) just open a PR directly here.
 
-- [ungoogled-chromium](https://github.com/ungoogled-software/ungoogled-chromium) — BrowserOS uses some patches for enhanced privacy. Thanks to everyone behind this project!
-- [The Chromium Project](https://www.chromium.org/) — at the core of BrowserOS, making it possible to exist in the first place.
+---
 
-## Citation
+## Why we forked (TL;DR)
 
-If you use BrowserOS in your research or project, please cite:
+| Upstream release | MCP server | Broke |
+|---|---|---|
+| 0.49.x | pre-165 | (baseline) |
+| 0.50.5 | 0.0.165 | `evaluate` semantics; `window` → `windows`; `tabs.select` removed; new required `session` arg |
 
-```bibtex
-@software{browseros2025,
-  author = {Nithin Sonti and Nikhil Sonti and {BrowserOS-team}},
-  title = {BrowserOS: The open-source Agentic browser},
-  url = {https://github.com/browseros-ai/BrowserOS},
-  year = {2025},
-  publisher = {GitHub},
-  license = {AGPL-3.0},
-}
-```
+Every upstream release has cost us 30+ minutes of wrapper debugging. This
+fork lets us ship backwards-compat shims locally, on our own cadence. See
+[`WHY_FORK.md`](WHY_FORK.md) for the full story.
+
+---
 
 ## License
 
-BrowserOS is open source under the [AGPL-3.0 license](LICENSE).
+AGPL-3.0, same as upstream. All patches contributed upstream must remain
+AGPL-3.0.
 
-Copyright &copy; 2026 Felafax, Inc.
-
-## Stargazers
-
-Thank you to all our supporters!
-
-[![Star History Chart](https://api.star-history.com/svg?repos=browseros-ai/BrowserOS&type=Date)](https://www.star-history.com/#browseros-ai/BrowserOS&Date)
-
-<p align="center">
-Built with ❤️ from San Francisco
-</p>
+```
+Copyright © 2026 bramburn (and the BrowserOS contributors)
+```
