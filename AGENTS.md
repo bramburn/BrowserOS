@@ -75,17 +75,34 @@ CRX from source. Neither is in this shallow clone.
 
 ## Today's breakage (2026-09-19) — what we want to fix
 
-BrowserOS 0.50.5 / MCP server 0.0.165 (released ~16-Sep-2026) shipped three
-breaking changes that broke every wrapper in `C:\dev\browser-cli`:
+BrowserOS 0.50.5 / MCP server 0.0.165 (released ~16-Sep-2026) shipped several
+changes that broke wrappers in `C:\dev\browser-cli`:
 
-| Change | Old | New |
+| Change | Old | New | Notes |
+|---|---|---|---|
+| New tool | `evaluate` (page-context JS) | `evaluate` (still there) + `run` (Bun-sandbox JS) | See "evaluate vs run" below. NOT a rename. |
+| Tool rename | `window` | `windows` | Now `list`/`create`/`close`/`activate`. |
+| `tabs` action | `select` | removed | Only `list`/`active`/`new`/`close` remain. |
+| New required arg | — | `session` on every tool call | Handle from `_meta.com.browseros/session`. |
+| `act` kinds added | — | `type_at`, `hover_at`, `drag_at`, `focus`, `check`, `uncheck`, `select` | Now 15 kinds. |
+| `act.fill.fields[]` | — | new multi-field array form | `{ref, value}[]`. |
+
+### `evaluate` vs `run` — they're DIFFERENT tools, not renames
+
+| | `evaluate` | `run` |
 |---|---|---|
-| Tool rename | `evaluate` | `run` (Bun sandbox, **no page-DOM access**) |
-| Tool rename | `window` | `windows` (now `list`/`create`/`close`/`activate`) |
-| `tabs` action | `select` | removed — only `list`/`active`/`new`/`close` |
-| New required arg | — | `session` on every tool call (handle from `_meta.com.browseros/session`) |
-| `act` kinds added | — | `type_at`, `hover_at`, `drag_at`, `focus`, `check`, `uncheck`, `select` |
-| `act.fill.fields[]` | — | new multi-field array form |
+| Required args | `page`, `code` | `code` (no `page`) |
+| Execution context | Page (has `document`, `window`) | Bun sandbox (no DOM) |
+| `timeout` cap | 30000 ms hard | 30000 ms per inner evaluate/wait |
+| Use for | Page interactions, DOM queries | Server-side JS, computation |
+
+We patched `browser-cli` to use `run` everywhere (mistakenly assuming it
+replaced `evaluate`). The capture above shows BOTH are present. The fix is
+to route page-context JS to `evaluate(page=N, code=...)` and Bun-side JS to
+`run(code=...)`.
+
+See [`docs/MCP_TOOL_SPEC.md`](docs/MCP_TOOL_SPEC.md) for the canonical tool
+spec (24 tools, full JSON Schemas).
 
 We patched `browser-cli` on 2026-09-19 to compensate:
 - `src/browser_cli/mcp_client.py` now captures `_meta.com.browseros/session` and auto-injects `session` on every `call_tool`.
