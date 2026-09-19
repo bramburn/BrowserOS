@@ -1,0 +1,280 @@
+name: Release BrowserOS Windows
+
+# Bramburn fork — Windows release pipeline.
+#
+# Triggered by:
+#   - workflow_dispatch (manual release; pass a version + chrome-ref)
+#   - nightly cron (after MCP/agent improvements are unblocked)
+#
+# Runs on the self-hosted Windows runner (browseros-builder-windows label).
+# Builds Chromium + bundled MCP server from source, signs via SSL.com
+# eSigner, packages the .exe installer, uploads to R2 + GitHub Releases,
+# and creates the `browseros-windows-v<version>` tag.
+#
+# This mirrors nightly-macos-build.yml for parity with the macOS pipeline.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. 0.1.0). Must match BROWSEROS_VERSION."
+        required: true
+        type: string
+      chromium_ref:
+        description: "Chromium source ref / commit (overrides BROWSEROS_BASE_COMMIT if set)."
+        required: false
+        default: ""
+        type: string
+      bump_mode:
+        description: "Pre-build version bump mode (matches bump_version.py modes)"
+        type: choice
+        required: false
+        default: "none"
+        options:
+          - none
+          - offset-only
+          - offset+build
+          - offset+patch
+      upload_to_r2:
+        description: "Publish build to R2/CDN after packaging"
+        type: boolean
+        required: false
+        default: true
+  schedule:
+    # Nightly at 02:00 UTC (4am BST). Cron cadence is the user's decision;
+    # once #1 auto-update is shippable, every successful run produces a new
+    # candidate that the in-browser updater can serve.
+    - cron: "0 2 * * *"
+
+concurrency:
+  group: windows-build
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, Windows, browseros-builder-windows]
+    timeout-minutes: 720  # 12 hours — Chromium + deps + signing + packaging
+    environment: release-core
+
+    steps:
+      - name: Resolve build inputs
+        id: build_inputs
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_CHROMIUM_REF: ${{ inputs.chromium_ref }}
+          INPUT_BUMP_MODE: ${{ inputs.bump_mode }}
+          INPUT_UPLOAD: ${{ inputs.upload_to_r2 }}
+          EVENT_NAME: ${{ github.event_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          DISPATCH_REF: ${{ github.ref_name }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $repo = $env:BROWSEROS_REPO_PATH
+          $chromiumSrc = $env:BROWSEROS_CHROMIUM_SRC
+          if (-not $repo) { throw "Set repository variable BROWSEROS_REPO_PATH" }
+          if (-not $chromiumSrc) { throw "Set repository variable BROWSEROS_CHROMIUM_SRC" }
+          if (-not (Test-Path "$repo/.git")) { throw "BROWSEROS_REPO_PATH does not point to a git checkout: $repo" }
+          if (-not (Test-Path $chromiumSrc)) { throw "BROWSEROS_CHROMIUM_SRC does not exist: $chromiumSrc" }
+
+          if ($env:EVENT_NAME -eq 'schedule') {
+            $targetRef = if ($env:BROWSEROS_NIGHTLY_REF) { $env:BROWSEROS_NIGHTLY_REF } else { $env:DEFAULT_BRANCH }
+            $bumpMode = 'offset+build'
+            $upload = 'true'
+          } else {
+            $targetRef = $env:DISPATCH_REF
+            $bumpMode = if ($env:INPUT_BUMP_MODE) { $env:INPUT_BUMP_MODE } else { 'none' }
+            $upload = if ($env:INPUT_UPLOAD -eq 'true') { 'true' } else { 'false' }
+          }
+
+          "repo=$repo"            | Out-File -Append -FilePath $env:GITHUB_OUTPUT
+          "chromium_src=$chromiumSrc" | Out-File -Append -FilePath $env:GITHUB_OUTPUT
+          "target_ref=$targetRef" | Out-File -Append -FilePath $env:GITHUB_OUTPUT
+          "bump_mode=$bumpMode"   | Out-File -Append -FilePath $env:GITHUB_OUTPUT
+          "upload_to_r2=$upload"  | Out-File -Append -FilePath $env:GITHUB_OUTPUT
+
+      - name: Sync build repo to target ref
+        env:
+          BROWSEROS_REPO: ${{ steps.build_inputs.outputs.repo }}
+          TARGET_REF: ${{ steps.build_inputs.outputs.target_ref }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-Location $env:BROWSEROS_REPO
+          git fetch origin --tags --prune
+          git reset --hard
+          git clean -fd
+          if (git show-ref --verify --quiet "refs/remotes/origin/$env:TARGET_REF") {
+            git checkout -B "$env:TARGET_REF" "origin/$env:TARGET_REF"
+            git reset --hard "origin/$env:TARGET_REF"
+          } else {
+            git checkout -f "$env:TARGET_REF"
+            git reset --hard "$env:TARGET_REF"
+          }
+
+      - name: Set up Python (uv)
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Bump version
+        id: bump
+        env:
+          BROWSEROS_REPO: ${{ steps.build_inputs.outputs.repo }}
+          BUMP_MODE: ${{ steps.build_inputs.outputs.bump_mode }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-Location "$env:BROWSEROS_REPO/packages/browseros"
+          # bump_version.py writes BROWSEROS_VERSION + BROWSEROS_BUILD_OFFSET
+          $version = uv run python build/scripts/bump_version.py --mode "$env:BUMP_MODE"
+          "version=$version" | Out-File -Append -FilePath $env:GITHUB_OUTPUT
+          "Built version: $version"
+
+      - name: Commit version bump via PR
+        if: ${{ steps.build_inputs.outputs.bump_mode != 'none' }}
+        env:
+          BROWSEROS_REPO: ${{ steps.build_inputs.outputs.repo }}
+          TARGET_REF: ${{ steps.build_inputs.outputs.target_ref }}
+          VERSION: ${{ steps.bump.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-Location $env:BROWSEROS_REPO
+          git add packages/browseros/resources/BROWSEROS_VERSION packages/browseros/build/config/BROWSEROS_BUILD_OFFSET
+          $diff = git diff --cached
+          if (-not $diff) { Write-Host "No version changes to commit."; exit 0 }
+          git -c user.name="BrowserOS CI" -c user.email="ci@browseros.com" commit -m "chore(release): build v$env:VERSION [skip ci]"
+          $safeTargetRef = ($env:TARGET_REF -replace '[^A-Za-z0-9._-]', '-')
+          $branch = "bot/windows-version-$safeTargetRef-v$env:VERSION"
+          $existingSha = (git ls-remote --heads origin $branch | ForEach-Object { $_.Split([char]9)[0] })
+          if ($existingSha) {
+            git push --force-with-lease="refs/heads/${branch}:${existingSha}" origin "HEAD:refs/heads/$branch"
+          } else {
+            git push origin "HEAD:refs/heads/$branch"
+          }
+          $existingPr = gh pr list --repo $env:GITHUB_REPOSITORY --base $env:TARGET_REF --head $branch --state open --json url --jq '.[0].url // ""'
+          if (-not $existingPr) {
+            $body = "Automated Windows version bump for v$env:VERSION.`n`nSource run: $env:RUN_URL`nTarget ref: $env:TARGET_REF"
+            gh pr create --repo $env:GITHUB_REPOSITORY --base $env:TARGET_REF --head $branch --title "chore(release): build v$env:VERSION" --body $body
+          }
+
+      - name: Build BrowserOS (Windows x64)
+        env:
+          BROWSEROS_REPO: ${{ steps.build_inputs.outputs.repo }}
+          CHROMIUM_SRC: ${{ steps.build_inputs.outputs.chromium_src }}
+          UPLOAD_TO_R2: ${{ steps.build_inputs.outputs.upload_to_r2 }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-Location "$env:BROWSEROS_REPO/packages/browseros"
+          $config = if ($env:UPLOAD_TO_R2 -eq 'true') {
+            'build/config/release.windows.yaml'
+          } else {
+            'build/config/sign.windows.yaml'  # sign + package only, no upload
+          }
+          uv run browseros build --config $config --chromium-src $env:CHROMIUM_SRC
+
+      - name: Upload .exe installer to workflow artifact
+        if: always() && steps.bump.outputs.version != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: BrowserOS_v${{ steps.bump.outputs.version }}_win-x64
+          path: ${{ steps.build_inputs.outputs.repo }}/packages/browseros/releases/${{ steps.bump.outputs.version }}/*.exe
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Generate release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.bump.outputs.version }}
+          WINDOWS_PATH: "packages/browseros"
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $currentTag = "browseros-windows-v$env:VERSION"
+          $previousTag = git tag -l 'browseros-windows-v*' --sort=-v:refname | Where-Object { $_ -ne $currentTag } | Select-Object -First 1
+          if (-not $previousTag) {
+            "Initial release of browseros-windows." | Out-File -FilePath /tmp/release-notes.md -Encoding utf8
+          } else {
+            $commits = git log "$previousTag..HEAD" --pretty=format:'%H' -- "$env:WINDOWS_PATH"
+            if (-not $commits) {
+              "No notable changes." | Out-File -FilePath /tmp/release-notes.md -Encoding utf8
+            } else {
+              $lines = @("## What's Changed", "")
+              foreach ($sha in $commits) {
+                $subject = git log -1 --pretty=format:'%s' $sha
+                $prNum = gh api "/repos/$env:GITHUB_REPOSITORY/commits/$sha/pulls" --jq '.[0].number // empty' 2>$null
+                if ($prNum -and ($subject -notlike "*(#$prNum)*")) {
+                  $lines += "- $subject (#$prNum)"
+                } else {
+                  $lines += "- $subject"
+                }
+              }
+              $lines -join "`n" | Out-File -FilePath /tmp/release-notes.md -Encoding utf8
+            }
+          }
+          "`n## Install`n`nDownload BrowserOS_v$env:VERSION_win-x64.exe below. The installer self-hosts the update manifest; future updates will be detected automatically.`n`n## What's new`n`nSee the in-app 'About' page after install." | Out-File -Append -FilePath /tmp/release-notes.md -Encoding utf8
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.bump.outputs.version }}
+          RELEASE_SHA: ${{ github.sha }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = "browseros-windows-v$env:VERSION"
+          $title = "BrowserOS Windows - v$env:VERSION"
+          Set-Location $env:GITHUB_WORKSPACE
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if (git rev-parse $tag 2>$null) {
+            Write-Host "Tag $tag already exists, skipping tag creation"
+          } else {
+            git tag -a $tag -m "browseros-windows v$env:VERSION" $env:RELEASE_SHA
+          }
+          if (git ls-remote --tags origin $tag) {
+            Write-Host "Tag $tag already on remote, skipping push"
+          } else {
+            git push origin $tag
+          }
+
+          $releases = "$env:BROWSEROS_REPO/packages/browseros/releases/$env:VERSION"
+          $artifacts = Get-ChildItem -Path $releases -Filter '*.exe' -ErrorAction SilentlyContinue
+
+          if (gh release view $tag 2>$null) {
+            Write-Host "Release $tag already exists, updating"
+            gh release edit $tag --title $title --notes-file /tmp/release-notes.md
+            if ($artifacts) {
+              gh release upload $tag $artifacts.FullName --clobber
+            }
+          } else {
+            $args = @('release', 'create', $tag, '--title', $title, '--notes-file', '/tmp/release-notes.md')
+            if ($artifacts) { $args += $artifacts.FullName }
+            gh @args
+          }
+
+      - name: Notify update-manifest workflow
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.bump.outputs.version }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          # Trigger update-manifest.yml to refresh the XML manifest on R2
+          # so the in-browser updater sees this release immediately.
+          gh workflow run update-manifest.yml \
+            --ref main \
+            -f version=$env:VERSION

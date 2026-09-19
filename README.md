@@ -166,6 +166,7 @@ picture.
 |---|---|---|---|
 | Bun MCP server | `packages/browseros-agent/apps/server` | 2-5 min | `bun install && bun run build` |
 | Chromium browser + bundled MCP | `packages/browseros/` via `tools/bramburn-build.ps1` | 6-13 h wall, 150 GB disk | 5 phases: setup → prep → build → sign → package |
+| Same Chromium build via CI | `.github/workflows/release-windows.yml` on the self-hosted runner | 6-13 h wall, ~5 min review | Produces the `.exe`, uploads to R2 + GitHub Release, tags `browseros-windows-v<version>` |
 
 **Prerequisites** (verified on this host 2026-09-19): VS2022 Community,
 Windows 10 SDK 10.0.26100, `depot_tools` (with ninja), Rust + cargo, Bun
@@ -174,6 +175,41 @@ Windows 10 SDK 10.0.26100, `depot_tools` (with ninja), Rust + cargo, Bun
 Full build instructions, the two execution paths (interactive vs detached),
 and the per-phase wall-time estimates are in
 [`AGENTS.md`](AGENTS.md) § "Build the Chromium browser".
+
+## Releases and auto-update
+
+Every release of the fork publishes two artifacts:
+
+1. A signed `BrowserOS_v<version>_win-x64.exe` installer on R2 and a
+   matching GitHub Release (tag `browseros-windows-v<version>`).
+2. Two XML manifests on R2 that drive auto-update:
+   - An **Omaha-4 update_check response** for Chromium's in-browser
+     updater (`components/update_client`) — drives the
+     "restart to update" toast.
+   - A **Sparkle-style appcast RSS** for `browseros-cli` and
+     external tools.
+   - Plus a tiny JSON pointer for lightweight CLI checks.
+
+The release pipeline:
+
+```
+release-windows.yml (self-hosted Windows runner)
+  → bumps BROWSEROS_VERSION
+  → runs bramburn-build.ps1 (5 phases, 6-13 h)
+  → optional AIP wrap (wrap_with_aip: true)
+  → uploads .exe to R2 + GitHub Release + tag
+  → triggers update-manifest.yml
+
+update-manifest.yml (ubuntu-latest)
+  → downloads .exe from GitHub Releases
+  → computes SHA-256
+  → runs tools/release/generate_update_manifests.py
+  → uploads update_check.xml, appcast.xml, latest.json to R2
+```
+
+See [`docs/CI_AND_RELEASES.md`](docs/CI_AND_RELEASES.md) for the full
+pipeline, R2 layout, tag conventions, and manual fallback.
+Rendered version at <https://bramburn.github.io/BrowserOS/>.
 
 ---
 

@@ -1,0 +1,178 @@
+name: Update BrowserOS update manifests
+
+# Bramburn fork — update manifest publisher.
+#
+# Fires when release-windows.yml completes successfully (workflow_run trigger).
+# Can also be triggered manually with a version arg.
+#
+# Generates two XML manifests:
+#   1. Omaha-4 update_check response — for Chromium's in-browser
+#      `components/update_client` (the "restart to update" toast).
+#   2. Sparkle-style appcast RSS — for browseros-cli and external tools.
+#
+# Both are uploaded to R2 at predictable URLs. The fork's `chrome.exe` is
+# patched at build time to point its update_client at the Omaha-4 URL; the
+# appcast URL is what `browseros-cli` polls.
+#
+# R2 layout for browseros artifacts:
+#   browseros/<version>/BrowserOS_v<version>_win-x64.exe   (binary)
+#   browseros/windows/update_check.xml                     (Omaha-4 response)
+#   browseros/windows/appcast.xml                          (Sparkle appcast)
+#   browseros/latest.json                                  (version pointer)
+
+on:
+  workflow_run:
+    workflows: ["Release BrowserOS Windows"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. 0.1.0). Defaults to latest browseros-windows tag."
+        required: false
+        default: ""
+        type: string
+  schedule:
+    # Refresh the manifest every 6 hours in case R2 was touched out-of-band.
+    - cron: "0 */6 * * *"
+
+concurrency:
+  group: update-manifest
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || (github.event.workflow_run.conclusion == 'success') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: release-core
+
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            # Pick the highest browseros-windows-v* tag.
+            VERSION=$(git tag -l 'browseros-windows-v*' --sort=-v:refname | head -n 1 | sed 's/^browseros-windows-v//')
+          fi
+          if [ -z "$VERSION" ]; then
+            echo "::error::No version could be resolved"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: $VERSION"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download release artifact
+        id: artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/release-artifacts
+          gh release download "browseros-windows-v$VERSION" \
+            --repo "${{ github.repository }}" \
+            --pattern "BrowserOS_v${VERSION}_win-x64.exe" \
+            --dir /tmp/release-artifacts
+          EXE="/tmp/release-artifacts/BrowserOS_v${VERSION}_win-x64.exe"
+          if [ ! -f "$EXE" ]; then
+            echo "::error::Expected $EXE but not found"
+            ls -la /tmp/release-artifacts
+            exit 1
+          fi
+          SHA=$(sha256sum "$EXE" | awk '{print $1}')
+          SIZE=$(stat -c%s "$EXE")
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+          echo "size=$SIZE" >> "$GITHUB_OUTPUT"
+          echo "Downloaded $EXE ($SIZE bytes, sha256 $SHA)"
+
+      - name: Generate update manifests
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          SHA256: ${{ steps.artifact.outputs.sha256 }}
+          SIZE: ${{ steps.artifact.outputs.size }}
+          FORK_R2_PREFIX: ${{ vars.FORK_R2_PREFIX || 'browseros' }}
+          FORK_CDN_BASE: ${{ vars.FORK_CDN_BASE || 'https://cdn.bramburn.com' }}
+          BROWSEROS_APP_ID: ${{ vars.BROWSEROS_APP_ID || '{B49B6F23-3D5C-4F7D-9F0F-1F5E5D4C4D9F}' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/manifests
+          python3 tools/release/generate_update_manifests.py \
+            --version "$VERSION" \
+            --sha256 "$SHA256" \
+            --size "$SIZE" \
+            --app-id "$BROWSEROS_APP_ID" \
+            --r2-prefix "$FORK_R2_PREFIX" \
+            --cdn-base "$FORK_CDN_BASE" \
+            --output-dir /tmp/out
+          ls -la /tmp/out
+          cat /tmp/out/appcast.xml | head -n 20
+
+      - name: Upload manifests to R2
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          VERSION: ${{ steps.version.outputs.version }}
+          R2_PREFIX: ${{ vars.FORK_R2_PREFIX || 'browseros' }}
+        shell: bash
+        working-directory: packages/browseros-agent
+        run: |
+          set -euo pipefail
+          if [ -z "$R2_ACCOUNT_ID" ]; then
+            echo "::error::R2_ACCOUNT_ID not configured. Add the R2 secrets to enable manifest publishing."
+            exit 1
+          fi
+          bun packages/build-tools/scripts/upload-to-r2.ts \
+            --file /tmp/out/update_check.xml \
+            --key "$R2_PREFIX/windows/update_check.xml" \
+            --content-type application/xml
+          bun packages/build-tools/scripts/upload-to-r2.ts \
+            --file /tmp/out/appcast.xml \
+            --key "$R2_PREFIX/windows/appcast.xml" \
+            --content-type application/rss+xml
+          bun packages/build-tools/scripts/upload-to-r2.ts \
+            --file /tmp/out/latest.json \
+            --key "$R2_PREFIX/latest.json" \
+            --content-type application/json
+          echo "Uploaded update manifests to R2"
+
+      - name: Comment on triggering release
+        if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
+        uses: actions/github-script@v7
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            if (!run) { return; }
+            const body = `### Update manifest published for v${process.env.VERSION}\n\n` +
+              `- Omaha-4 update_check: \`https://cdn.bramburn.com/browseros/windows/update_check.xml\`\n` +
+              `- Appcast RSS: \`https://cdn.bramburn.com/browseros/windows/appcast.xml\`\n` +
+              `- Latest pointer: \`https://cdn.bramburn.com/browseros/latest.json\`\n\n` +
+              `Installed BrowserOS v${process.env.VERSION} instances will see the in-browser 'restart to update' toast within their next update_client poll.`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: run.id,  // not a real issue; comment on the workflow run via API instead
+              body,
+            }).catch((e) => core.warning(`Could not post comment: ${e.message}`));
