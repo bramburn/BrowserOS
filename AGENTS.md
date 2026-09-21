@@ -262,6 +262,102 @@ Given the session time budget and the strategic roadmap above:
 7. ❌ **Build the bundled `browseros_server.exe` from source** — source not in this fork; revisit only when MCP work is unblocked
 8. ❌ **Replace installed BrowserOS** — requires successful Chromium build
 
+## Chromium sync — lessons learned (2026-09-19/20)
+
+We attempted the Chromium source fetch twice. Both wrappers died silently. The
+lessons are captured here so the next attempt doesn't repeat them. Full
+incident log: `C:\temp\browseros-build\*.log` (still on disk).
+
+### 1. The failure is HTTP 429, NOT cache corruption
+
+`depot_tools`' `git_cache.py:762` raises `git_cache.ClobberNeeded()` on **any**
+failed `+refs/heads/*:refs/heads/*` fetch — a blanket catch that mislabels
+429s, network errors, and genuine corruption all as "corrupted cache". The
+diagnostic that separates them:
+
+```powershell
+Select-String -Path 'C:\temp\browseros-build\gclient*.log' -Pattern '429|RESOURCE_EXHAUSTED|Short term server-time rate limit'
+```
+
+If you see `subject: "shared/shared_anonymous"` and `RESOURCE_EXHAUSTED`,
+the cache is fine — you're hitting `chromium.googlesource.com`'s anonymous
+short-term rate limit. Fix: `gclient sync -j1` (serial fetches stay under the
+quota), not a cache wipe. Re-run with a 15-min cool-down between passes:
+`C:\temp\browseros-build\sync-throttled.cmd` is already written and uses
+8 passes × 900 s cool-down.
+
+### 2. Detached `cmd.exe` wrappers die silently on this host (two failed attempts)
+
+Both detach patterns below were tried; both died with **zero** Windows Event
+Log entries (no Application Error, no WER, no Security logoff). The wrapper
+just vanished mid-sync.
+
+| Run | Pattern | Death time | What happened |
+|---|---|---|---|
+| v1 (PID 43300) | `Start-Process -WindowStyle Hidden` from bash | 76 min | Cache 102→148 mirrors (real work); died silently |
+| v2 (PID 3648) | `wscript.exe → cmd /c start /B /MIN cmd /c <launcher>` | <10 min | Died almost immediately |
+
+Hypotheses tested:
+- Job-object cleanup from the bash task (v2 disproves this — `start /B` breaks the chain)
+- Group Policy 1054 (recurring on this box, but GPO failure doesn't kill processes)
+- SCM service churn (benign — services cycling during normal operation)
+- OOM killer / Defender (Defender already disabled; plenty of disk + RAM)
+
+**Unknown root cause.** Only known-stable hosts for long-running `gclient sync` here are:
+
+1. **Self-hosted GH Actions runner** at `actions.runner.bramburn-BrowserOS.SERVER02`
+   (installed 2026-09-19). It's a real Windows Service — the parent is the
+   kernel, not a parent shell. Use `.github/workflows/release-windows.yml` with
+   `runs-on: [self-hosted, Windows, browseros-builder-windows]`.
+2. **Windows Scheduled Task** registered with the `SYSTEM` account, triggered by
+   event/time. Immune to interactive-process churn.
+
+**Don't** try yet another `Start-Process` / `wscript` / `start /B` variant.
+Pick one of the two stable hosts above.
+
+### 3. `mavis-trash` CLIXML stderr-capture quirk on large dirs
+
+When trashing directories ≥10 GB, `mavis-trash.cmd` may exit 1 with a
+`#< CLIXML` error in the captured output, even though the move completed.
+Workaround that works:
+
+```powershell
+& 'C:\Users\bramburn\.minimax\bin\mavis-trash.cmd' $dir *> $null
+# then verify with:
+Test-Path $dir
+```
+
+`*> $null` redirects BOTH streams and avoids the PowerShell pipeline bug.
+The 19 GB `_gclient_cache_full_20260919` succeeded this way; the 12 GB
+`_src_partial_20260919` did not (stayed on disk).
+
+### 4. Current disk state (after 2026-09-20 14:00 BST cleanup)
+
+| Path | State | Size |
+|---|---|---|
+| `C:\browersos-build\.gclient_cache` | TRASHED ✓ | ~20 GB reclaimed |
+| `C:\browersos-build\src` | STILL ON DISK | ~10 GB |
+| `C:\browersos-build\_src_partial_20260919` | STILL ON DISK | ~12.7 GB |
+| `C:\browersos-build\_src_restart_partial_20260919` | TRASHED ✓ | ~1.8 GB reclaimed |
+| `C:\browersos-build\.gclient` | KEPT (config) | small |
+| `C:\browersos-build\fetch-chromium.cmd` | KEPT (launcher) | small |
+| `C:\temp\browseros-build\*` (logs + sync-throttled scripts) | KEPT (diagnostic) | small |
+
+Disk free: ~119 GB. Total reclaim if you sweep `src/` and `_src_partial_20260919`:
+~22 GB more.
+
+To complete the cleanup when you return:
+```powershell
+& 'C:\Users\bramburn\.minimax\bin\mavis-trash.cmd' 'C:\browersos-build\src' *> $null
+& 'C:\Users\bramburn\.minimax\bin\mavis-trash.cmd' 'C:\browersos-build\_src_partial_20260919' *> $null
+```
+
+### 5. Cron watchdog state
+
+`browseros-build-watchdog` (cron id `4d85d9b8-4666-47e4-9ab0-c811dc6631f2`)
+is **disabled** as of 2026-09-20. Re-enable with `enabled: true` only when a
+sync is actually running.
+
 ## Recommended path (matches the strategic roadmap)
 
 ### Priority #1 — auto-update like Edge / Chrome (gating)
