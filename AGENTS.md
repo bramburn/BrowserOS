@@ -416,6 +416,10 @@ Can start in parallel with #1 once we have the fork public:
 ## Files to know
 
 - `WHY_FORK.md` — why we forked (motivation + scope)
+- `AGENTS-ubuntu-dev.md` — **local Ubuntu dev build** via SSH to the
+ LAN box (`192.168.0.45`). Dev-only path; complements the Windows
+ release path below. See the rendered [Docusaurus
+ mirror](docs-site/docs/ubuntu-dev.md).
 - `docs/CI_AND_RELEASES.md` — full runbook for the fork's CI, release,
   and update pipeline (workflows, self-hosted runner, R2 layout, tag
   conventions, manual fallback). Read this before changing any
