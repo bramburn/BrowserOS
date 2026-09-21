@@ -256,7 +256,7 @@ Mirrors `tools/bramburn-build.ps1` phase-for-phase (verified against
 | Phase | CLI | What it does | Wall time (projected) |
 |---|---|---|---|
 | 1 setup | `browseros build --setup` | `clean` + `git_setup` + `sparkle_setup` | 30–90 min |
-| 2 prep | `browseros build --prep` | `resources` + `chromium_replace` + `string_replaces` + `patches` + `configure` | 5–15 min |
+| 2 prep | `browseros build --prep` (or `--modules=resources,…,configure` if no R2 creds) | `resources` + `chromium_replace` + `string_replaces` + `patches` + `configure` | 5–15 min |
 | 3 build | `browseros build --build -t release -a x64` | `compile` (autoninja) | **12–24 h** |
 | 4 sign | `browseros build --sign` | `sign_linux` — **no-op** per `--list` | seconds |
 | 5 package | `browseros build --package` | `package_linux` → AppImage + `.deb` | 1–3 min |
@@ -356,7 +356,7 @@ holds the applied BrowserOS patches. To rebuild after editing patches:
 | tmux session vanishes after SSH ends | Use `tools/ubuntu-launch.sh` (`setsid + nohup`) |
 | `gclient sync` hits `git_cache.ClobberNeeded()` + `RESOURCE_EXHAUSTED` | chromium.googlesource.com rate-limited; re-run with `GCLIENT_PARALLEL_FETCH=1` (serial) and 15-min cool-downs. See AGENTS.md §"Chromium sync" |
 | `gclient sync` hangs on `src` step forever (PCPU ~0.2%, no log output, STALL DETECTED every 5 min) | chromium.googlesource.com anonymous rate limit on the bulk src fetch | Cool down 15+ min, retry with `GCLIENT_PARALLEL_FETCH=1`. As a last resort, switch the chromium remote to the GitHub mirror (`https://github.com/chromium/chromium.git`). See "Bootstrap chromium_src". |
-| `browseros build --setup` stuck on `git fetch --tags --force` for 10+ min, PCPU ~0%, no log output | Tag fetch on anonymous-rate-limited chromium.googlesource.com | Skip `git_setup` and run `gclient sync -D --no-history --shallow --verbose` directly from `~/browseros-build/src` with `GCLIENT_PARALLEL_FETCH=1`. See "Bootstrap chromium_src". |
+| `browseros build --prep` fails with `R2 configuration not set. Required env vars: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY` | Phase 2's first sub-module `download_resources` fetches the bundled MCP server binaries from Cloudflare R2 | For dev builds, skip just that module. Run with `--modules=resources,bundled_extensions,chromium_replace,string_replaces,patches,configure` instead of `--prep` — the bundled MCP server binaries are optional. The orchestrator (`tools/ubuntu-build.sh`) does this automatically when R2 env vars are unset. Verified 2026-09-21: 341/341 patches applied, GN configure succeeded in ~60 s. |
 | `git fetch --tags` runs for hours | Use the depth-1 SHA-fetch pattern instead |
 | Disk full during phase 1 | DEPS pulls many GB; `df -h /`; if > 90%, free space before continuing |
 | OOM during phase 3 | Linux Chromium link step is RAM-hungry; watch for `c++: internal compiler error: Killed`; may need `-j4` |

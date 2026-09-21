@@ -120,7 +120,27 @@ run_browseros() {
 }
 
 phase_setup()   { run_browseros 1 "setup"   build --setup   --chromium-src "$CHROMIUM_SRC"; }
-phase_prep()    { run_browseros 2 "prep"    build --prep    --chromium-src "$CHROMIUM_SRC"; }
+phase_prep()    {
+  # Phase 2 (`browseros build --prep`) auto-runs `download_resources`
+  # which requires R2 credentials (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID,
+  # R2_SECRET_ACCESS_KEY). For dev builds without those creds, skip just
+  # that module — the bundled MCP server binaries are optional; the rest
+  # (resources, bundled_extensions, chromium_replace, string_replaces,
+  # patches, configure) all work without R2. Verified 2026-09-21: phase 2
+  # completed in ~60 s with 341/341 patches applied.
+  #
+  # To run the full prep including download_resources, set the R2_* env
+  # vars then call `browseros build --prep` directly (the CLI rejects
+  # `--modules` combined with phase flags like `--prep`).
+  local modules="resources,bundled_extensions,chromium_replace,string_replaces,patches,configure"
+  if [ -n "${R2_ACCOUNT_ID:-}" ] && [ -n "${R2_ACCESS_KEY_ID:-}" ] && [ -n "${R2_SECRET_ACCESS_KEY:-}" ]; then
+    log "R2 creds present; running full phase 2 via --prep"
+    run_browseros 2 "prep" build --prep --chromium-src "$CHROMIUM_SRC"
+  else
+    log "R2 creds absent; running phase 2 via --modules (skipping download_resources)"
+    run_browseros 2 "prep" build --chromium-src "$CHROMIUM_SRC" --modules "$modules"
+  fi
+}
 phase_build()   { run_browseros 3 "build"   build --build   --chromium-src "$CHROMIUM_SRC" -t release -a x64; }
 phase_sign()    { log "phase 4 (sign) is a no-op on Linux dev builds — Windows-only"; write_state 4 "sign" "ok"; return 0; }
 phase_package() { run_browseros 5 "package" build --package --chromium-src "$CHROMIUM_SRC" --target linux-dev; }

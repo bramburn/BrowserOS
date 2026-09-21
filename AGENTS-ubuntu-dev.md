@@ -5,12 +5,19 @@
 > local Ubuntu LAN box (`192.168.0.45`, hostname `macmini2024`) reached via
 > SSH from this Windows dev machine.
 >
-> **Status: 2026-09-21 (later):** phase 1 complete. Chromium source
-> cloned at the pinned commit (148.0.7778.97 / `6b3fa66a92`), gclient sync
-> succeeded after setting `managed: False` for the `src` solution in
-> `.gclient` (works around the chromium.googlesource.com anonymous
-> rate-limit). 164 DEPS repos + ~22 GB of CIPD prebuilds populated. Zero
-> errors. Ready for phase 2 (`browseros build --prep`).
+> **Status: 2026-09-21 (later):** phases 1 + 2 complete.
+> - Phase 1 (gclient sync) succeeded after setting `managed: False` for
+>  the `src` solution in `.gclient` (works around the
+>  chromium.googlesource.com anonymous rate-limit). 164 DEPS repos +
+>  ~22 GB of CIPD prebuilds populated. Zero errors.
+> - Phase 2 (prep) succeeded in ~60 s, applying **341/341 patches** clean
+>  and running `gn gen out/Default_x64` ("Made 28979 targets from 4615
+>  files in 49154 ms"). Final `out/Default_x64/{build.ninja,args.gn}`
+>  exist. Built-in workaround in `tools/ubuntu-build.sh` for the R2-creds
+>  issue (skips `download_resources` automatically when R2 env vars are
+>  unset).
+> - Phase 3 (autoninja, 12-24 h) is ready to fire on your schedule
+>  (`tools/ubuntu-launch.sh --phase 3`).
 
 ## When to use this path vs. the Windows path
 
