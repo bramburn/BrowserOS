@@ -5,10 +5,12 @@
 > local Ubuntu LAN box (`192.168.0.45`, hostname `macmini2024`) reached via
 > SSH from this Windows dev machine.
 >
-> **Status: 2026-09-21** — first end-to-end run **blocked** by chromium.g.o
-> anonymous rate-limit wall. Toolchain verified, chromium source cloned at the
-> pinned commit (6.9 GiB shallow), all scripts in place. `gclient sync` cannot
-> fetch DEPS at this time. See §4.5 / §8 for the wall and the resume path.
+> **Status: 2026-09-21 (later):** phase 1 complete. Chromium source
+> cloned at the pinned commit (148.0.7778.97 / `6b3fa66a92`), gclient sync
+> succeeded after setting `managed: False` for the `src` solution in
+> `.gclient` (works around the chromium.googlesource.com anonymous
+> rate-limit). 164 DEPS repos + ~22 GB of CIPD prebuilds populated. Zero
+> errors. Ready for phase 2 (`browseros build --prep`).
 
 ## When to use this path vs. the Windows path
 
@@ -257,29 +259,50 @@ target_os_only = False
 EOF
 ```
 
-**Important rate-limit workaround (verified 2026-09-21):**
-`browseros build --setup` internally runs `git fetch --tags --force` on
-chromium_src, which walks all ~5000 Chromium tags and gets stuck on
-anonymous-rate-limited chromium.googlesource.com (PCPU 0.3% indefinitely,
-no progress, no 429 error in the log). The `--depth=1` fetch above does
-NOT include remote tags, so we manually `git tag -f` the pinned tag locally
-to satisfy `_verify_tag_exists`, then bypass `git_setup` entirely by
-running `gclient sync` directly:
+**Important rate-limit workaround (verified 2026-09-21, second pass):**
+
+The earlier workarounds (manual chromium bootstrap + 15-min cooldowns) were
+insufficient. Even `gclient sync` directly, on chromium.googlesource.com,
+hung at `src` for 13+ min (PCPU 0.2%, `STALL DETECTED` every 5 min).
+A 1.5-hour cooldown + a github.com mirror swap still hung in the same spot.
+
+**The actual fix** is to tell gclient NOT to manage chromium/src at all.
+We already cloned it manually; gclient just needs to fetch DEPS. Edit
+`~/browseros-build/.gclient` and set the src solution to `managed: False`:
+
+```python
+solutions = [
+  { "name" : "src",
+    "url" : "https://github.com/chromium/chromium.git",  # or googs
+    "deps_file" : "DEPS",
+    "managed" : False,                                    # ← key fix
+    "custom_deps" : {},
+  },
+]
+target_os = ["chromeos"]
+target_os_only = False
+```
+
+With `managed=False`, gclient skips the chromium/src fetch entirely and
+goes straight to DEPS. Verified 2026-09-21 14:58–15:10: `gclient sync`
+completed in ~12 min, populated 164 DEPS repos + ~22 GB of prebuilds,
+zero errors.
+
+Then continue with `git_setup`'s actual work (which is now safe because
+DEPS are in place):
 
 ```bash
 export PATH="$HOME/.local/bin:$HOME/depot_tools:$PATH"
-export GCLIENT_PARALLEL_FETCH=1   # serial fetches; avoid 429
+export GCLIENT_PARALLEL_FETCH=4   # github tolerates parallel; googs tolerates serial
 cd ~/browseros-build/src
 gclient sync -D --no-history --shallow --verbose
 ```
 
-This is what `git_setup` would have done after the tag fetch. It pulls
-DEPS-specified third-party repos (v8, skia, angle, etc.) and is the
-long-running part of phase 1.
-
-After `gclient sync` completes successfully, the rest of `browseros build
---prep`, `--build`, `--sign`, `--package` all work — only the
-`git_setup` submodule is the slow stuck one.
+The trade-off: chromium/src stays at the manually-pinned commit (no
+auto-update to upstream HEAD) — fine for dev builds where we control the
+patch set. For release builds you'd typically want `managed=True` +
+authenticated access (see the GitHub Actions runner section in
+[`docs/CI_AND_RELEASES.md`](docs/CI_AND_RELEASES.md)).
 
 ### 4.6 Pull in the launch + orchestrator scripts
 

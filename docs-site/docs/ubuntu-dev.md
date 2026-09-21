@@ -180,33 +180,44 @@ target_os_only = False
 EOF
 ```
 
-**Rate-limit workaround (verified 2026-09-21):** `browseros build --setup`
-internally runs `git fetch --tags --force` which walks all ~5000 Chromium
-tags and gets stuck on anonymous-rate-limited chromium.googlesource.com
-(PCPU 0.3% indefinitely, no progress, no 429 in the log). Bypass it by
-running `gclient sync` directly:
+**Rate-limit workaround (verified 2026-09-21, end-to-end):**
+
+The earlier workarounds (manual chromium bootstrap + 15-min cooldowns +
+git fetch --depth=1) were insufficient by themselves. Even `gclient sync`
+hung at `src` for 13+ min (PCPU 0.2%, `STALL DETECTED` every 5 min) on
+chromium.googlesource.com.
+
+**The actual fix** is to tell gclient NOT to manage chromium/src — we
+already cloned it manually; gclient just needs DEPS. Edit
+`~/browseros-build/.gclient` and set the src solution to `managed: False`:
+
+```python
+solutions = [
+  { "name" : "src",
+    "url" : "https://github.com/chromium/chromium.git",  # or googs
+    "deps_file" : "DEPS",
+    "managed" : False,                                    # ← key fix
+    "custom_deps" : {},
+  },
+]
+target_os = ["chromeos"]
+target_os_only = False
+```
+
+With `managed=False`, gclient skips the chromium/src fetch entirely and
+goes straight to DEPS. Verified 2026-09-21: `gclient sync` completed in
+~12 min, populated 164 DEPS repos + ~22 GB of prebuilds, zero errors.
 
 ```bash
 export PATH="$HOME/.local/bin:$HOME/depot_tools:$PATH"
-export GCLIENT_PARALLEL_FETCH=1   # serial fetches; avoid 429
+export GCLIENT_PARALLEL_FETCH=4
 cd ~/browseros-build/src
 gclient sync -D --no-history --shallow --verbose
 ```
 
-This is what `git_setup` would have done after the tag fetch — it pulls
-DEPS-specified third-party repos (v8, skia, angle, etc.) and is the
-long-running part of phase 1.
-
-**Hard wall (same day):** `gclient sync` itself can also hit a
-chromium.googlesource.com rate-limit wall — PCPU ~0.2%, no log output,
-`STALL DETECTED` every 5 min. A direct `curl
-.../info/refs?service=git-upload-pack` timed out at 10 s with only 11 MB
-downloaded (full ref advertisement is ~50 MB), and a direct `git fetch
---depth=1 origin HEAD` succeeds in 5 s sometimes and stalls other times.
-The rate-limit window is unpredictable. Resume path: cool down 15+ min,
-retry, and as a last resort switch the chromium remote to the GitHub
-mirror (`https://github.com/chromium/chromium.git`) for reliability over
-freshness.
+Trade-off: chromium/src stays at the manually-pinned commit (no
+auto-update to upstream HEAD) — fine for dev builds. Release builds
+usually want `managed=True` + authenticated access.
 
 ### Pull in the orchestrator + launch wrapper
 
