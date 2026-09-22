@@ -416,6 +416,10 @@ Can start in parallel with #1 once we have the fork public:
 ## Files to know
 
 - `WHY_FORK.md` — why we forked (motivation + scope)
+- `AGENTS-toolchain.md` — **canonical toolchain reference** for the
+ Ubuntu dev host (apt deps, depot_tools, fork clone, `browseros` CLI,
+ verification). See the rendered
+ [Docusaurus mirror](docs-site/docs/toolchain.md).
 - `AGENTS-ubuntu-dev.md` — **local Ubuntu dev build** via SSH to the
  LAN box (`192.168.0.45`). Dev-only path; complements the Windows
  release path below. See the rendered [Docusaurus

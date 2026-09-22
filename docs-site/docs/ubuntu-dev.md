@@ -107,38 +107,22 @@ After a full build:
 
 ## First-time toolchain setup
 
-### apt-install Chromium build deps
+The host prep (apt install + depot_tools + fork clone + `pipx install` of
+`packages/browseros`) lives in the dedicated **[Toolchain](toolchain)**
+page. Run those steps first (~5 min on a fresh box), then come back here
+for the *build*-specific steps below (chromium bootstrap, scripts, verify).
 
-Ubuntu 24.04 (Noble) package names. **Note** the package is
-`libpango1.0-dev` — NOT `libpango-1.0-dev` (that name fails on Noble).
-
-```bash
-sudo apt-get update -qq
-sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-  git curl wget ca-certificates gnupg \
-  build-essential ccache g++-13 gcc-13 g++-multilib \
-  python3 python3-dev python3-pip pipx \
-  ninja-build pkg-config \
-  libnss3-dev libatk1.0-dev libatk-bridge2.0-dev libcups2-dev \
-  libxkbcommon-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
-  libxrandr-dev libgbm-dev libpango1.0-dev libcairo2-dev libasound2-dev \
-  libdbus-1-dev libdrm-dev libxshmfence-dev libglib2.0-dev libxkbfile-dev \
-  libavif-dev libwoff-dev libopus-dev libwebp-dev libharfbuzz-dev \
-  libxslt1-dev libevent-dev libvpx-dev libgstreamer1.0-dev \
-  libgstreamer-plugins-base1.0-dev mesa-common-dev \
-  tmux rsync unzip
-```
-
-### Install depot_tools + fork + browseros CLI
+Before continuing, confirm the toolchain is ready:
 
 ```bash
-git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git ~/depot_tools
-git clone --depth=1 https://github.com/bramburn/BrowserOS.git ~/browersos-src
-pipx install -e ~/browersos-src/packages/browseros
-
-# PATH for this session (also add to ~/.bashrc for interactive shells)
 export PATH="$HOME/.local/bin:$HOME/depot_tools:$PATH"
+command -v ninja g++ git gh browseros gclient
+ninja --version
+g++ --version | head -1
+browseros build --help | head -3
 ```
+
+If those print without errors, proceed.
 
 ### Bootstrap `chromium_src` (the step the README skips)
 
@@ -237,16 +221,15 @@ Then on the box:
 chmod +x ~/browseros-build/ubuntu-build.sh ~/browseros-build/ubuntu-launch.sh
 ```
 
-### Verify
+### Verify (after pull)
 
 ```bash
-export PATH="$HOME/.local/bin:$HOME/depot_tools:$PATH"
-ninja --version            # 1.11.x
-python3 --version          # 3.12.x
-gclient --version          # prints usage
-browseros build --help     # rich Typer-formatted help
+~/browseros-build/ubuntu-build.sh --help        # orchestrator help
 bash -n ~/browseros-build/ubuntu-build.sh && echo "syntax OK"
+~/browseros-build/ubuntu-launch.sh --help
 ```
+
+Base-toolchain checks (ninja/g++/browseros CLI) live in [Toolchain](toolchain) §Step 5.
 
 ## The orchestrator: `tools/ubuntu-build.sh`
 

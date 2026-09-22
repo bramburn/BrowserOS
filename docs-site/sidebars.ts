@@ -13,7 +13,7 @@ const sidebars: SidebarsConfig = {
       type: "category",
       label: "Build & Release",
       collapsed: false,
-      items: ["build", "ubuntu-dev", "release", "update-server", "advance-installer"],
+      items: ["build", "ubuntu-dev", "toolchain", "release", "update-server", "advance-installer"],
     },
     {
       type: "category",
