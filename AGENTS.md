@@ -416,6 +416,12 @@ Can start in parallel with #1 once we have the fork public:
 ## Files to know
 
 - `WHY_FORK.md` — why we forked (motivation + scope)
+- `AGENTS-architecture.md` — **opinionated architecture map**: layers,
+ data flow, opinionated rules (R1—R14), key integration seams. Read
+ this first when onboarding.
+- `AGENTS-build.md` — **build pipeline**: Chromium fork 5 phases +
+ Bun monorepo scripts + update manifests. Opinionated workflow per
+ artifact type.
 - `AGENTS-toolchain.md` — **canonical toolchain reference** for the
  Ubuntu dev host (apt deps, depot_tools, fork clone, `browseros` CLI,
  verification). See the rendered
@@ -424,16 +430,35 @@ Can start in parallel with #1 once we have the fork public:
  LAN box (`192.168.0.45`). Dev-only path; complements the Windows
  release path below. See the rendered [Docusaurus
  mirror](docs-site/docs/ubuntu-dev.md).
+
+### Sub-package AGENTS files (opinionated views per folder)
+
+- `packages/browseros/AGENTS.md` — Chromium fork view (Python CLI,
+ features.yaml manifest, 342 patches, modules).
+- `packages/browseros-agent/AGENTS.md` — Bun monorepo entry (apps,
+ packages, scripts, coding rules).
+- `packages/browseros-agent/apps/server/AGENTS.md` — MCP server
+ internals (tools, routes, agent loop, Drizzle).
+- `packages/browseros-agent/apps/agent/AGENTS.md` — WXT extension
+ internals (entrypoints, components, lib).
+- `packages/browseros-agent/apps/cli/AGENTS.md` — Go CLI.
+- `packages/browseros-agent/apps/eval/AGENTS.md` — Eval harness.
+- `packages/browseros-agent/packages/shared/AGENTS.md` — Shared
+ constants & types (Rule R2 source-of-truth).
+
+### Other reference docs
+
 - `docs/CI_AND_RELEASES.md` — full runbook for the fork's CI, release,
-  and update pipeline (workflows, self-hosted runner, R2 layout, tag
-  conventions, manual fallback). Read this before changing any
-  workflow file.
+ and update pipeline (workflows, self-hosted runner, R2 layout, tag
+ conventions, manual fallback). Read this before changing any
+ workflow file.
 - `tools/release/generate_update_manifests.py` — generates the
-  Omaha-4 + appcast + JSON pointer from a release artifact.
-- `packages/browseros/CHROMIUM_VERSION` — pinned Chromium version (146.0.7778.97)
+ Omaha-4 + appcast + JSON pointer from a release artifact.
+- `packages/browseros/CHROMIUM_VERSION` — pinned Chromium version (148.0.7778.97)
 - `packages/browseros/BASE_COMMIT` — exact Chromium commit
 - `packages/browseros-agent/apps/server/src/tools/snapshot.ts` — modern snapshot impl
 - `packages/browseros-agent/apps/server/src/browser/backends/cdp.ts` — CDP client
+- `packages/browseros-agent/CLAUDE.md` — coding guidelines for the Bun monorepo
 - `packages/browseros/chromium_patches/chrome/browser/browseros/server/` — C++ wrapper for the bundled MCP server
 - `packages/browseros/chromium_patches/chrome/browser/browseros/bundled_extensions/` — CRX list (controller, agent, bug-reporter)
 

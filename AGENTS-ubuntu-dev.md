@@ -167,63 +167,22 @@ they land is determined by `tools/release/package_linux.py`; check
 
 ## 4. First-time toolchain setup
 
-Run these from the box (one-time, idempotent — safe to re-run):
+> **Run the [Toolchain](docs-site/docs/toolchain.md) doc first** — apt install
+> + `depot_tools` + fork clone + `pipx install` of `packages/browseros` take
+> ~5 min. This section only covers the steps *after* the toolchain is ready
+> and that are specific to the build (chromium bootstrap, scripts, verify).
 
-### 4.1 apt-install Chromium build deps
-
-Ubuntu 24.04 (Noble) package names. **Note** the package is `libpango1.0-dev`
-(NOT `libpango-1.0-dev` — that name fails on Noble).
-
-```bash
-sudo apt-get update -qq
-sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-  git curl wget ca-certificates gnupg \
-  build-essential ccache g++-13 gcc-13 g++-multilib \
-  python3 python3-dev python3-pip pipx \
-  ninja-build pkg-config \
-  libnss3-dev libatk1.0-dev libatk-bridge2.0-dev libcups2-dev \
-  libxkbcommon-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
-  libxrandr-dev libgbm-dev libpango1.0-dev libcairo2-dev libasound2-dev \
-  libdbus-1-dev libdrm-dev libxshmfence-dev libglib2.0-dev libxkbfile-dev \
-  libavif-dev libwoff-dev libopus-dev libwebp-dev libharfbuzz-dev \
-  libxslt1-dev libevent-dev libvpx-dev libgstreamer1.0-dev \
-  libgstreamer-plugins-base1.0-dev mesa-common-dev \
-  tmux rsync unzip
-```
-
-### 4.2 Install `depot_tools`
+Verify the toolchain is ready before continuing:
 
 ```bash
-git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git ~/depot_tools
-```
-
-### 4.3 Clone the fork
-
-Shallow clone matches this Windows checkout (`C:\dev\BrowserOs`):
-
-```bash
-git clone --depth=1 https://github.com/bramburn/BrowserOS.git ~/browersos-src
-```
-
-### 4.4 Install the `browseros` CLI
-
-Editable install so changes to `packages/browseros/` on Windows propagate
-after a `git pull` on the box:
-
-```bash
-pipx install -e ~/browersos-src/packages/browseros
-```
-
-If `pipx` warns about `~/.local/bin` not being on PATH, add it now:
-
-```bash
-echo 'export PATH="$HOME/.local/bin:$HOME/depot_tools:$PATH"' >> ~/.bashrc
-# But also export in this session:
 export PATH="$HOME/.local/bin:$HOME/depot_tools:$PATH"
+command -v ninja g++ git gh browseros gclient
+ninja --version
+g++ --version | head -1
+browseros build --help | head -3
 ```
 
-(For scripted SSH sessions, the scripts in this repo set PATH inline so the
-`.bashrc` line is only needed for interactive shells.)
+If those print without errors, proceed to §4.5.
 
 ### 4.5 Bootstrap `chromium_src` (the step the README skips)
 
@@ -332,21 +291,19 @@ chmod +x ~/browseros-build/ubuntu-build.sh ~/browseros-build/ubuntu-launch.sh
 (For long-term, prefer committing these two scripts to the fork and pulling
 on the box — see §7.5.)
 
-### 4.7 Verify toolchain
+### 4.7 Verify toolchain (after pull)
 
 ```bash
 cd ~/browseros-build
 export PATH="$HOME/.local/bin:$HOME/depot_tools:$PATH"
 
-ninja --version          # expect 1.11.x
-python3 --version        # expect 3.12.x
-g++ --version | head -1  # expect 13.3.x
-gclient --version        # expect "Usage: gclient.py ..." (no error)
-browseros build --help   # expect the rich Typer-formatted help
-
-~/browseros-build/ubuntu-build.sh --help    # expect the orchestrator help
+~/browseros-build/ubuntu-build.sh --help        # expect the orchestrator help
 bash -n ~/browseros-build/ubuntu-build.sh && echo "syntax OK"
+~/browseros-build/ubuntu-launch.sh --help
 ```
+
+The base-toolchain checks (ninja/g++/browseros CLI) live in
+[`AGENTS-toolchain.md`](AGENTS-toolchain.md) / [Toolchain](docs-site/docs/toolchain.md) §Step 5.
 
 ## 5. The orchestrator: `tools/ubuntu-build.sh`
 
