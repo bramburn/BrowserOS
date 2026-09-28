@@ -174,8 +174,12 @@ Write-Log "wrote $gclientPath (cache_dir -> $cacheDirPy)"
 # and gclient has to find .gclient one level up from where it will place it.
 Write-State "bootstrap-sync" "running"
 Write-Log "=== step 1/2: gclient sync (bootstrap, ~50 GB, 1-3 h) ==="
+# --jobs 8: gclient defaults to 32 parallel SCM fetches on this machine, which
+# trips HTTP 429 rate limiting on chromium.googlesource.com and surfaces as a
+# misleading `git_cache.ClobberNeeded: Corrupted cache.`. The cache is fine;
+# the fetches were refused. Lower parallelism fixes the real cause.
 $bootstrapExit = Invoke-Native -Exe $Gclient `
-    -ArgumentList @("sync", "--no-history", "--shallow") -WorkDir $BuildRoot
+    -ArgumentList @("sync", "--no-history", "--shallow", "--jobs", "8") -WorkDir $BuildRoot
 Write-Log ("gclient sync exit=" + $bootstrapExit)
 if ($bootstrapExit -ne 0) {
     Write-Log "bootstrap sync failed -- see $LogFile" "ERROR"
@@ -202,11 +206,22 @@ if (-not $version) {
 Write-State "tag-checkout" "running" $version
 Write-Log ("=== step 2/2: checking out tag " + $version + " ===")
 
-$fetchExit = Invoke-Native -Exe "git" -ArgumentList @("fetch", "--tags", "--force") -WorkDir $SrcDir
-if ($fetchExit -ne 0) {
-    Write-Log "git fetch --tags failed" "ERROR"
-    Write-State "tag-checkout" "failed" "git fetch exit $fetchExit"
-    exit 1
+# Only fetch when the tag is not already present locally. A --depth/--shallow
+# clone brings along the tags that point into the fetched history, so the tag
+# is usually already there, and `git fetch --tags` then fails with
+# "couldn't find remote ref refs/tags/<v>" (exit 128) purely because the
+# remote has no such ref. Treating that as fatal aborted the run *after* the
+# tree was already correct, and skipped the DEPS re-sync that actually matters.
+$haveTag = (& git -C $SrcDir rev-parse -q --verify "refs/tags/$version" 2>$null)
+if ($LASTEXITCODE -eq 0 -and $haveTag) {
+    Write-Log "tag $version already present locally; skipping fetch"
+} else {
+    $fetchExit = Invoke-Native -Exe "git" -ArgumentList @("fetch", "--tags", "--force") -WorkDir $SrcDir
+    if ($fetchExit -ne 0) {
+        Write-Log "git fetch --tags failed" "ERROR"
+        Write-State "tag-checkout" "failed" "git fetch exit $fetchExit"
+        exit 1
+    }
 }
 
 $checkoutExit = Invoke-Native -Exe "git" -ArgumentList @("checkout", "tags/$version") -WorkDir $SrcDir
@@ -220,7 +235,7 @@ $head = (& git -C $SrcDir rev-parse HEAD 2>&1).ToString().Trim()
 Write-Log ("HEAD is now " + $head)
 Write-Log "re-syncing DEPS to match the tag"
 $resyncExit = Invoke-Native -Exe $Gclient `
-    -ArgumentList @("sync", "--no-history", "--shallow") -WorkDir $BuildRoot
+    -ArgumentList @("sync", "--no-history", "--shallow", "--jobs", "8") -WorkDir $BuildRoot
 if ($resyncExit -ne 0) {
     Write-Log "DEPS re-sync failed -- see $LogFile" "ERROR"
     Write-State "tag-checkout" "failed" "resync exit $resyncExit"
