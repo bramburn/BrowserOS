@@ -190,6 +190,33 @@ in `cli/build.py` is fixed; modules self-declare ordering via
 | Add a Chrome flag | `chromium_patches/chrome/browser/browseros/core/browseros_switches.h` + `chrome/browser/ui/startup/...` |
 | Change the bundled MCP server URL | `build/config/download_resources.yaml` (the `r2_key` for the relevant platform/arch) |
 | Custom pre-build / post-build hooks | `build/common/pipeline.py` |
+| Validate a hand-edited patch diff | `python scripts/check_patch_headers.py chromium_patches` |
+
+## Checking a patch before you ship it
+
+Every file in `chromium_patches/` is a **unified diff**, including brand-new
+files. Editing one by hand means keeping the `@@ -a,b +c,d @@` header's line
+counts in step with the body, and `git apply` reports any drift as
+`corrupt patch at line N` — pointing at the end of the hunk, not the line you
+broke. Two checks, both fast and both runnable without a Chromium checkout:
+
+```bash
+# 1. Declared counts vs actual body. Exits non-zero and names the file+line.
+python scripts/check_patch_headers.py chromium_patches
+
+# 2. The real thing: applies every `new file mode` diff through git apply.
+#    114 of 299 patches. The other 185 modify existing files and need a
+#    genuine base file, so they are reported as skipped, not silently passed.
+python scripts/check_patch_apply_test.py
+
+# Unit tests for the checker itself.
+python -m unittest discover -s scripts -p '*_test.py'
+```
+
+Check 1 is a proxy; check 2 is ground truth for the new-file patches. If a
+patch you wrote fails check 2, the patch is wrong — do not loosen the checker.
+Beware that a hunk count is *old = context + removed* and
+*new = context + added*; adding a line raises `new` only.
 
 ## Build-time artefacts
 
