@@ -1,25 +1,64 @@
 # Plan — Page context-menu screenshot
 
-> **Status:** proposal, not implemented. Nothing in this plan has been built or
-> tested. The Chromium tree is not yet on disk, so every Chromium-side API
-> signature below is **unverified at `148.0.7778.97`** and is marked as such.
-> See [Verification gaps](#verification-gaps).
+> **Status: Route C chosen (2026-09-28). Step 0 is answered; Route A is not
+> being built.** See [Step 0 result](#step-0-result--route-c) below.
 >
 > **Scope:** Windows. Other OSes are out of scope until the Windows build is
 > green (see [`docs/WINDOWS_BUILD.md`](../docs/WINDOWS_BUILD.md)).
 >
-> **Decision (2026-09-28): implement this — but only after the Windows build
-> succeeds.** Do not begin Step 1 until `docs/WINDOWS_BUILD.md` reports a
-> completed `autoninja` run that produced `chrome.exe`. Two things are blocked
-> on that, not just one: every Chromium-side signature below needs the tree to
-> verify against, and the **Step 0 gate needs a running browser** to answer
-> whether Chrome already ships this item. Implementing before then would
-> produce a diff written against remembered APIs rather than real ones, which
-> is the failure mode this whole plan is structured to avoid.
->
 > **Repo-local paths** are relative to this repo. **Chromium-tree paths** are
 > paths inside `<chromium_src>/` after `gclient sync`, and are *not* files you
 > edit directly — see [File changes](#file-changes).
+
+## Step 0 result — Route C
+
+**Answered on 2026-09-28 without waiting for a build**, by reading the shipped
+`BrowserOS 151.0.8162.137` release build already installed on this host
+(`%LOCALAPPDATA%\BrowserOS\Application\151.0.8162.137\`):
+
+| Check | BrowserOS 151 | Stock Chromium 146 | Stock Chrome 153 |
+|---|---|---|---|
+| `Cast, save, and share` | x1 | x1 | x1 |
+| `Save page as` | x1 | x1 | x1 |
+| `Screenshot copied to clipboard` | x1 | x1 | x1 |
+
+`chrome.dll` contains `RenderViewContextMenu` (x14), `CaptureScreenshot` (x2),
+`CopyFromSurface` (x1) and `third_party_llm` (x7 — BrowserOS's own panel code
+really is in there), with `BrowserOSScreenshot` at x0.
+
+The strings sit in the contiguous run `Screenshot` | `Save page as` | `Cast` |
+`Screenshot copied to clipboard` — the stock Chromium screenshot flow — and are
+**identical across all three browsers**, so they are upstream code rather than a
+BrowserOS addition. Combined with the verified fact that no patch in
+`chromium_patches/` removes the stock item, **the item is present and working.**
+
+That is the *"Item present, works, just unbranded"* row: **stock Chromium
+already delivers this.** Route A would re-implement capture the browser already
+ships — the plan's own *"Building a feature that already exists"* pitfall.
+
+**Decision: build Route C only.** No new command ID, no service, no handler, no
+`BUILD.gn`. The stock handler keeps ownership of the capture; the work is to
+promote the entry out of *Cast, save, and share* to the top level under a
+BrowserOS string.
+
+### Two honest limits on that evidence
+
+- The installed build is **151.0.8162.137**; the repo pins **148.0.7778.97**.
+  It is strong evidence about the product line, not literally the tree we patch.
+- Strings prove the item is *compiled in*, not that it *renders*. A runtime gate
+  could still hide it. The gold standard remains a live right-click.
+
+### Route C, concretely
+
+1. In `chrome/browser/renderer_context_menu.cc`, move the stock screenshot entry
+   out of the *Cast, save, and share* submenu to the top level of the page
+   context menu, retitled with a BrowserOS string.
+2. Add the one `IDS_` string to `generated_resources.grd`.
+3. Nothing else. The stock `ScreenshotController` still does the capture.
+
+**Prerequisite:** this still needs the real tree, to write a hunk against the
+actual `AppendMenuItems` at 148.0.7778.97. `renderer_context_menu.cc` is not
+patched by any existing block, so this feature owns it outright.
 
 ## Goal
 
@@ -43,7 +82,19 @@ The headline: **the capture half of this feature is already written and
 proven.** This plan is about extracting it into a shared helper and giving it a
 context-menu entry point.
 
+> **Naming correction (2026-09-28).** The `IDS_BROWSEROS_*` prefix used in the
+> tables below does **not** match the convention already in
+> `generated_resources.grd`, which is `IDS_THIRD_PARTY_LLM_TITLE`,
+> `IDS_CLASH_OF_GPTS_TITLE`, `IDS_CLASH_OF_GPTS_TOOLTIP`,
+> `IDS_IMPORT_FROM_CHROME`. Match those, not a `BROWSEROS_` prefix, so the file
+> stays internally consistent. Only four `IDS_` strings exist in that diff
+> today.
+
 ## Step 0 — resolve the "is it already there?" question
+
+> **RESOLVED — see [Step 0 result](#step-0-result--route-c). The answer was
+> Route C. Everything from here to the end of Route A is retained only as the
+> reasoning trail and the API notes; it is not the plan of record.**
 
 Before writing any C++, answer this, because it changes the work by an order of
 magnitude.
@@ -70,6 +121,10 @@ Everything after this point assumes **Route A**. If Step 0 lands on Route C,
 stop reading — that plan is a tenth of the work.
 
 ## Route A — native C++ patch (recommended)
+
+> **NOT BEING BUILT.** Kept for the API notes and the reasoning behind the
+> split. Step 0 resolved to Route C, so there is no service, handler, command
+> ID or `BUILD.gn` to write. Do not implement this section.
 
 BrowserOS-native capture, independent of the MCP server and of extension
 release cycles.
@@ -127,8 +182,7 @@ migrated onto it later and both features share one code path.
 |---|---|---|
 | Command ID | `IDC_BROWSEROS_SCREENSHOT` = **40308** | `chrome/app/chrome_command_ids.h` (next free in 403xx) |
 | Menu item IDs | `IDC_BROWSEROS_SCREENSHOT_COPY` = **40309**, `IDC_BROWSEROS_SCREENSHOT_SAVE` = **40310** | same |
-| Menu string | `IDS_BROWSEROS_SCREENSHOT`, `IDS_BROWSEROS_SCREENSHOT_COPY`, `IDS_BROWSEROS_SCREENSHOT_SAVE` | `chrome/app/generated_resources.grd` |
-| Vector icon | `kBrowserOSScreenshotIcon` (new) or reuse `kPhotoChromeRefreshIcon` | `ui/vector_icons/` |
+| Menu string | `IDS_BROWSEROS_SCREENSHOT`, `IDS_BROWSEROS_SCREENSHOT_COPY`, `IDS_BROWSEROS_SCREENSHOT_SAVE` | `chrome/app/generated_resources.grd` || Vector icon | `kBrowserOSScreenshotIcon` (new) or reuse `kPhotoChromeRefreshIcon` | `ui/vector_icons/` |
 | Capture entry point | `browseros::screenshot::CaptureViewport(content::WebContents*, Callback)` | new service |
 | Clipboard entry point | `browseros::screenshot::CopyToClipboard(const gfx::Image&)` | new service |
 | File save entry point | `browseros::screenshot::SaveAsFile(const gfx::Image&, Profile*)` | new service |
@@ -302,6 +356,9 @@ Windows is the only target. Do not spend time on Linux/macOS until the Windows
 build is green.
 
 ## Route C — promote the stock item
+
+> **THIS IS THE PLAN OF RECORD.** Chosen 2026-09-28 on the evidence in
+> [Step 0 result](#step-0-result--route-c).
 
 Only if Step 0 finds the item already working. Much smaller:
 
