@@ -60,11 +60,13 @@ version. Either satisfies the C++ workload.
 & D:\BrowserOs\tools\bramburn-build.ps1 -StopAfterPhase 5
 ```
 
-Run it detached; the bash tool's 5-minute ceiling will kill it otherwise:
+Run it detached; the bash tool's 5-minute ceiling will kill it otherwise.
+Use `powershell.exe`, **not** `python.exe` — these are `.ps1` scripts and Python
+exits with a `SyntaxError` on them:
 
 ```powershell
-Start-Process -FilePath "C:\Python312\python.exe" `
-  -ArgumentList "D:\BrowserOs\tools\bramburn-build.ps1" -StopAfterPhase 3 `
+Start-Process -FilePath "powershell.exe" `
+  -ArgumentList "-NoProfile","-ExecutionPolicy","Bypass","-File","D:\BrowserOs\tools\bramburn-build.ps1","-StopAfterPhase","3" `
   -WindowStyle Hidden `
   -RedirectStandardOutput "D:\browseros-build\logs\build-stdout.log" `
   -RedirectStandardError  "D:\browseros-build\logs\build-stderr.log"
@@ -126,6 +128,44 @@ turns a completed fetch into hours of redundant downloading.
 `out/` directory and no local modifications under the patched paths. A dirty
 tree still gets the full clean, so rebuild behaviour is unchanged. If
 `git status` fails, it conservatively assumes dirty and cleans anyway.
+
+### 5. `$Args` is a reserved PowerShell variable, so the helper bound it empty
+
+`Invoke-Native` in `tools/fetch-chromium.ps1` was declared as:
+
+```powershell
+function Invoke-Native {
+    param([string]$Exe, [string[]]$Args, [string]$WorkDir)
+```
+
+`$args` is a PowerShell **automatic variable**. A `[string[]]$Args` parameter
+never receives the caller's values — it silently binds to an empty array, and
+the failure surfaces far away:
+
+```
+Start-Process : Cannot validate argument on parameter 'ArgumentList'.
+The argument is null, empty, or an element of the argument collection
+contains a null value.
+```
+
+Note this is *not* the "client not configured" error from blocker 1, so it is
+easy to misread as a gclient problem. Renamed the parameter to
+`$ArgumentList`. Never name a PowerShell parameter `$Args` (nor `$input`,
+`$error`, `$this`).
+
+### 6. The documented detached recipe could not run at all
+
+The procedure told you to launch a `.ps1` through `C:\Python312\python.exe`:
+
+```
+File "tools\fetch-chromium.ps1", line 31
+  [string]$BuildRoot = "D:\browseros-build",
+SyntaxError: invalid syntax
+```
+
+It fails instantly and never touches the network, so it looks like the script
+is broken rather than the launcher. Use `powershell.exe -File`, as shown in
+[Procedure](#procedure).
 
 ## Known risks
 

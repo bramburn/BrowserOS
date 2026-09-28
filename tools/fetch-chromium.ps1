@@ -17,9 +17,10 @@
 # Usage (from PowerShell, NOT from the bash tool):
 #   & <repo>\tools\fetch-chromium.ps1
 #
-# Detached (recommended -- this takes 1-3 h):
-#   Start-Process -FilePath "C:\Python312\python.exe" `
-#     -ArgumentList "<repo>\tools\fetch-chromium.ps1" `
+# Detached (recommended -- this takes 1-3 h). Run it with powershell.exe, NOT
+# python.exe: this is a PowerShell script, and python exits with a SyntaxError.
+#   Start-Process -FilePath "powershell.exe" `
+#     -ArgumentList "-NoProfile","-ExecutionPolicy","Bypass","-File","<repo>\tools\fetch-chromium.ps1" `
 #     -WindowStyle Hidden `
 #     -RedirectStandardOutput "<BuildRoot>\logs\fetch-stdout.log" `
 #     -RedirectStandardError  "<BuildRoot>\logs\fetch-stderr.log"
@@ -84,10 +85,13 @@ function Write-State {
 #     redirects raw bytes, so the log stays readable UTF-8.
 #
 # Returns the process exit code.
+# The parameter is $ArgumentList, NOT $Args: $args is a PowerShell automatic
+# variable, so a [string[]]$Args parameter silently binds empty and every call
+# dies with "Cannot validate argument on parameter 'ArgumentList'".
 function Invoke-Native {
     param(
         [string]$Exe,
-        [string[]]$Args,
+        [string[]]$ArgumentList,
         [string]$WorkDir
     )
     $outTmp = Join-Path $LogDir "_native_out.tmp"
@@ -96,7 +100,7 @@ function Invoke-Native {
         if (Test-Path $t) { Remove-Item $t -Force }
     }
 
-    $proc = Start-Process -FilePath $Exe -ArgumentList $Args -WorkingDirectory $WorkDir `
+    $proc = Start-Process -FilePath $Exe -ArgumentList $ArgumentList -WorkingDirectory $WorkDir `
         -NoNewWindow -Wait -PassThru `
         -RedirectStandardOutput $outTmp -RedirectStandardError $errTmp
 
@@ -171,7 +175,7 @@ Write-Log "wrote $gclientPath (cache_dir -> $cacheDirPy)"
 Write-State "bootstrap-sync" "running"
 Write-Log "=== step 1/2: gclient sync (bootstrap, ~50 GB, 1-3 h) ==="
 $bootstrapExit = Invoke-Native -Exe $Gclient `
-    -Args @("sync", "--no-history", "--shallow") -WorkDir $BuildRoot
+    -ArgumentList @("sync", "--no-history", "--shallow") -WorkDir $BuildRoot
 Write-Log ("gclient sync exit=" + $bootstrapExit)
 if ($bootstrapExit -ne 0) {
     Write-Log "bootstrap sync failed -- see $LogFile" "ERROR"
@@ -198,14 +202,14 @@ if (-not $version) {
 Write-State "tag-checkout" "running" $version
 Write-Log ("=== step 2/2: checking out tag " + $version + " ===")
 
-$fetchExit = Invoke-Native -Exe "git" -Args @("fetch", "--tags", "--force") -WorkDir $SrcDir
+$fetchExit = Invoke-Native -Exe "git" -ArgumentList @("fetch", "--tags", "--force") -WorkDir $SrcDir
 if ($fetchExit -ne 0) {
     Write-Log "git fetch --tags failed" "ERROR"
     Write-State "tag-checkout" "failed" "git fetch exit $fetchExit"
     exit 1
 }
 
-$checkoutExit = Invoke-Native -Exe "git" -Args @("checkout", "tags/$version") -WorkDir $SrcDir
+$checkoutExit = Invoke-Native -Exe "git" -ArgumentList @("checkout", "tags/$version") -WorkDir $SrcDir
 if ($checkoutExit -ne 0) {
     Write-Log "git checkout tags/$version failed" "ERROR"
     Write-State "tag-checkout" "failed" "git checkout exit $checkoutExit"
@@ -216,7 +220,7 @@ $head = (& git -C $SrcDir rev-parse HEAD 2>&1).ToString().Trim()
 Write-Log ("HEAD is now " + $head)
 Write-Log "re-syncing DEPS to match the tag"
 $resyncExit = Invoke-Native -Exe $Gclient `
-    -Args @("sync", "--no-history", "--shallow") -WorkDir $BuildRoot
+    -ArgumentList @("sync", "--no-history", "--shallow") -WorkDir $BuildRoot
 if ($resyncExit -ne 0) {
     Write-Log "DEPS re-sync failed -- see $LogFile" "ERROR"
     Write-State "tag-checkout" "failed" "resync exit $resyncExit"
