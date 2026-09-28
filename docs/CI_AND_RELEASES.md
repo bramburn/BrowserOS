@@ -39,7 +39,7 @@ plus `tools/release/generate_update_manifests.py`.
 | Path | `C:\actions-runner` |
 | Service | `actions.runner.bramburn-BrowserOS.browseros-builder-windows` |
 | Required tools | VS2022 Community 14.44, Win10 SDK 10.0.26100, depot_tools, Rust, Bun 1.4+, Python 3.12 |
-| Disk | 150 GB+ free at `C:\browersos-build\src` |
+| Disk | 150 GB+ free at `D:\browseros-build\src` |
 
 The runner is provisioned on this dev box. It auto-starts on boot.
 See [`docs-site/docs/ci-runners.md`](../docs-site/docs/ci-runners.md)
@@ -105,8 +105,8 @@ requires deleting both the GitHub Release and the R2 artifacts.
 
 | Variable | Example | Used by |
 |---|---|---|
-| `BROWSEROS_REPO_PATH` | `C:\dev\BrowserOs` | Self-hosted runners |
-| `BROWSEROS_CHROMIUM_SRC` | `C:\browersos-build\src` | Self-hosted runners |
+| `BROWSEROS_REPO_PATH` | `D:\BrowserOs` | Self-hosted runners |
+| `BROWSEROS_CHROMIUM_SRC` | `D:\browseros-build\src` | Self-hosted runners |
 | `BROWSEROS_NIGHTLY_REF` | `main` | Nightly macOS build |
 | `FORK_R2_PREFIX` | `browseros` | Update-manifest R2 key prefix |
 | `FORK_CDN_BASE` | `https://cdn.bramburn.com` | Public CDN base URL |
@@ -131,7 +131,7 @@ If the self-hosted runner is offline and you need to publish:
 
 ```powershell
 # 1. Run the build interactively
-cd C:\dev\BrowserOs
+cd D:\BrowserOs
 $env:PYTHONIOENCODING = "utf-8"
 & tools\bramburn-build.ps1 -StopAfterPhase 5
 

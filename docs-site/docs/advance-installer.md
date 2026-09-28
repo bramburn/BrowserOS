@@ -41,7 +41,7 @@ invocation.
 
 ```
 [1] bramburn-build.ps1 phase 5: produces
-    C:\browersos-build\src\out\Default\mini_installer.exe
+    D:\browseros-build\src\out\Default\mini_installer.exe
 
 [2] (optional) AdvancedInstaller.com /build installer/browseros.aip
     - input: the mini_installer.exe from step 1

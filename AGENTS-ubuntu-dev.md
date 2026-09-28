@@ -26,7 +26,7 @@
 | **Goal** | Producing a signed Windows `.exe` for release to R2 + GitHub Releases | Producing a Linux `.deb` / AppImage + dev tree for local iteration on Linux-shaped patches |
 | **CPU** | Modern Windows desktop | **i7-3615QM (Ivy Bridge, 2012), 4C/8T @ 2.3 GHz** — the build-rate bottleneck |
 | **RAM** | 32+ GiB typical | 15 GiB (14 GiB available — sufficient for Chromium) |
-| **Disk** | `C:\browersos-build\src` (~150 GB) | `~/browseros-build/src` (~150 GB at ~180 GB free today) |
+| **Disk** | `D:\browseros-build\src` (~150 GB) | `~/browseros-build/src` (~150 GB at ~180 GB free today) |
 | **Network** | Same home LAN egress | Same home LAN egress |
 | **Detach** | `Start-Process -WindowStyle Hidden` + redirected stdout (see AGENTS.md §3) | `setsid + nohup` with PID file (this file §6.3) |
 | **Runtime** | 7–13 h per AGENTS.md table | **Projected 16–24 h** (slower CPU; not yet measured end-to-end) |
@@ -132,7 +132,7 @@ Host 192.168.0.46
 ## 3. Workspace layout on the box
 
 ```
-~/browersos-src/                   # the fork clone (matches C:\dev\BrowserOs)
+~/browersos-src/                   # the fork clone (matches D:\BrowserOs)
 ├── .git/
 ├── packages/browseros/            # pipx-installed as editable
 ├── tools/
@@ -140,7 +140,7 @@ Host 192.168.0.46
 │ └── ubuntu-launch.sh             # detached-launch wrapper
 └── ... (rest of fork)
 
-~/browseros-build/                  # build root (matches C:\browersos-build\)
+~/browseros-build/                  # build root (matches D:\browseros-build\)
 ├── src/                            # Chromium source (post-setup)
 ├── .gclient                        # depot_tools config (sibling of src/)
 ├── build.log                       # orchestrator log

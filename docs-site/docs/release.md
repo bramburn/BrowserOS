@@ -66,8 +66,8 @@ Public URL prefix (via Cloudflare): `https://cdn.bramburn.com/<r2-prefix>/...`
 
 | Variable | Example | Used by |
 |---|---|---|
-| `BROWSEROS_REPO_PATH` | `C:\dev\BrowserOs` | Self-hosted runner (Windows + macOS) |
-| `BROWSEROS_CHROMIUM_SRC` | `C:\browersos-build\src` | Self-hosted runner (Windows + macOS) |
+| `BROWSEROS_REPO_PATH` | `D:\BrowserOs` | Self-hosted runner (Windows + macOS) |
+| `BROWSEROS_CHROMIUM_SRC` | `D:\browseros-build\src` | Self-hosted runner (Windows + macOS) |
 | `BROWSEROS_NIGHTLY_REF` | `main` | Nightly macOS build |
 | `FORK_R2_PREFIX` | `browseros` | Update-manifest R2 key prefix |
 | `FORK_CDN_BASE` | `https://cdn.bramburn.com` | Public CDN base URL |

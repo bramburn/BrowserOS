@@ -77,7 +77,7 @@ git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git ~/dep
 
 ## Step 3 — Clone the fork
 
-Shallow clone matches the Windows checkout at `C:\dev\BrowserOs`:
+Shallow clone matches the Windows checkout at `D:\BrowserOs`:
 
 ```bash
 git clone --depth=1 https://github.com/bramburn/BrowserOS.git ~/browersos-src

@@ -7,7 +7,7 @@ See `WHY_FORK.md` (added 2026-09-19) for the motivation.
 
 - **Fork**: `github.com/bramburn/BrowserOS` (public, mirror of upstream)
 - **Upstream**: `github.com/browseros-ai/BrowserOS`
-- **Local checkout**: `C:\dev\BrowserOs` (shallow clone, depth=1, ~344 MB)
+- **Local checkout**: `D:\BrowserOs` (shallow clone, depth=1, ~344 MB)
 - **Bundled MCP server** (the one we hit today on `127.0.0.1:9200`): precompiled into `browseros_server.exe` — see "Bundled MCP server source" below
 - **Build pipeline**: Python CLI (`packages/browseros/`) that fetches Chromium 146 + applies ~342 patches + builds via ninja (6-12 h on this Windows box)
 - **Bun MCP server** (`packages/browseros-agent/apps/server`): source is here, builds in 2-5 min, used by BrowserOS neo (not bundled with the browser)
@@ -170,7 +170,7 @@ behavior in a backwards-compat shim so existing clients don't break.
 ### Build the Bun MCP server (fast)
 
 ```powershell
-cd C:\dev\BrowserOs\packages\browseros-agent\apps\server
+cd D:\BrowserOs\packages\browseros-agent\apps\server
 bun install
 bun run build   # produces ./dist
 ```
@@ -187,9 +187,9 @@ Run the orchestrator from an interactive PowerShell window, NOT from the
 bash tool (which has a 5-min timeout that would kill mid-build):
 
 ```powershell
-cd C:\dev\BrowserOs
+cd D:\BrowserOs
 $env:PYTHONIOENCODING = "utf-8"
-& C:\dev\BrowserOs\tools\bramburn-build.ps1
+& D:\BrowserOs\tools\bramburn-build.ps1
 # Default: run all 5 phases (setup -> prep -> build -> sign -> package)
 # -StopAfterPhase 1: setup only (gclient fetch, 30-60 min)
 # -StopAfterPhase 2: setup + prep (~1-2 h)
@@ -210,16 +210,16 @@ workaround when the detached path fails:
 
 ```powershell
 # Run interactively in a separate PowerShell window so it survives logout
-Start-Process powershell.exe -ArgumentList '-NoProfile','-Command','while($true){& C:\dev\BrowserOs\tools\bramburn-build.ps1 -StopAfterPhase 3; "build done, retrying..."; Start-Sleep 60}' -WindowStyle Hidden
+Start-Process powershell.exe -ArgumentList '-NoProfile','-Command','while($true){& D:\BrowserOs\tools\bramburn-build.ps1 -StopAfterPhase 3; "build done, retrying..."; Start-Sleep 60}' -WindowStyle Hidden
 ```
 
 #### Build phases (each ~time)
 
 | Phase | Command | Wall time | Disk |
 |---|---|---|---|
-| 1 setup | `browseros build --setup` (gclient + clean) | 30-60 min | +50 GB at `C:\browersos-build\src` |
+| 1 setup | `browseros build --setup` (gclient + clean) | 30-60 min | +50 GB at `D:\browseros-build\src` |
 | 2 prep | `browseros build --prep` (configure + patches + replace + resources) | 5-15 min | +0 GB |
-| 3 build | `browseros build --build` (autoninja, `-t release -a x64`) | 6-12 h | +100 GB at `C:\browersos-build\src\out` |
+| 3 build | `browseros build --build` (autoninja, `-t release -a x64`) | 6-12 h | +100 GB at `D:\browseros-build\src\out` |
 | 4 sign | `browseros build --sign` (sign_windows) | 2-5 min | +0 GB |
 | 5 package | `browseros build --package` (package_windows) | 1-3 min | +0 GB |
 
@@ -232,7 +232,7 @@ After successful build:
 
 ```powershell
 $INSTALLED = "C:\Users\bramburn\AppData\Local\browseros\Application\151.0.8162.137"
-$BUILT = "C:\browersos-build\src\out\Default"
+$BUILT = "D:\browseros-build\src\out\Default"
 
 # Backup installed browser binary
 Move-Item "$INSTALLED\chrome.exe" "$INSTALLED\chrome.exe.bak"
@@ -253,7 +253,7 @@ the published server.
 
 Given the session time budget and the strategic roadmap above:
 
-1. ✅ **Fork + clone** (done — public at `bramburn/BrowserOS`, local at `C:\dev\BrowserOs`)
+1. ✅ **Fork + clone** (done — public at `bramburn/BrowserOS`, local at `D:\BrowserOs`)
 2. ✅ **Audit host toolchain** (done — see table above)
 3. ✅ **Architectural review** (done — see diagrams)
 4. ✅ **Document today's breakage** (this file; MCP work deferred per roadmap)
@@ -365,7 +365,7 @@ sync is actually running.
 Before writing any auto-update code:
 
 1. Confirm `bramburn-build.ps1` has produced a working Chromium at
-   `C:\browersos-build\src\out\Default\chrome.exe`.
+   `D:\browseros-build\src\out\Default\chrome.exe`.
 2. Audit the update URL config in the patches:
    `packages/browseros/chromium_patches/chrome/browser/browseros/server/` and
    any `components/update_client/` overrides. Identify every place the

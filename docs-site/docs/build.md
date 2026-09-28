@@ -40,13 +40,13 @@ The full Chromium + bundled MCP build. Required for:
 ### Run interactively (simplest — works today)
 
 ```powershell
-cd C:\dev\BrowserOs
+cd D:\BrowserOs
 $env:PYTHONIOENCODING = "utf-8"
-& C:\dev\BrowserOs\tools\bramburn-build.ps1 -StopAfterPhase 3
+& D:\BrowserOs\tools\bramburn-build.ps1 -StopAfterPhase 3
 ```
 
 This runs phases 1-3 (setup → prep → build). Total wall time: 7-13 h
-on this Windows box. Disk: 150 GB at `C:\browersos-build\src`.
+on this Windows box. Disk: 150 GB at `D:\browseros-build\src`.
 
 ### Run detached (for overnight)
 
@@ -58,7 +58,7 @@ orchestrator in detached mode via GitHub Actions.
 
 | Phase | Wall time | What it produces |
 |---|---|---|
-| 1 setup | 30-60 min | gclient sync + clean checkout (~50 GB at `C:\browersos-build\src`) |
+| 1 setup | 30-60 min | gclient sync + clean checkout (~50 GB at `D:\browseros-build\src`) |
 | 2 prep | 5-15 min | configure + patches + replace + resources |
 | 3 build | 6-12 h | autoninja `-t release -a x64` (+100 GB at `out\Default`) |
 | 4 sign | 2-5 min | `sign_windows` via SSL.com eSigner |
@@ -69,9 +69,9 @@ The orchestrator at `tools/bramburn-build.ps1` handles all five.
 ## Where artifacts go
 
 ```
-C:\browersos-build\src\out\Default\chrome.exe                     (~500 MB)
-C:\browersos-build\src\out\Default\mini_installer.exe              (~50 MB)
-C:\dev\BrowserOs\packages\browseros\releases\<version>\
+D:\browseros-build\src\out\Default\chrome.exe                     (~500 MB)
+D:\browseros-build\src\out\Default\mini_installer.exe              (~50 MB)
+D:\BrowserOs\packages\browseros\releases\<version>\
   └── BrowserOS_v<version>_win-x64.exe                            (~150 MB)
 ```
 

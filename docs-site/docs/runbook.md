@@ -18,7 +18,7 @@ log shows "STALL DETECTED".
 
 ```powershell
 Get-Process | Where-Object { $_.Name -eq 'git' } | Select-Object Id, CPU, WS
-Get-ChildItem C:\browersos-build\src\.git\index.lock -ErrorAction SilentlyContinue
+Get-ChildItem D:\browseros-build\src\.git\index.lock -ErrorAction SilentlyContinue
 ```
 
 **If `git` is consuming CPU** (e.g. >100 s) and `WS` is growing
@@ -28,7 +28,7 @@ Get-ChildItem C:\browersos-build\src\.git\index.lock -ErrorAction SilentlyContin
 Restart with `--verbose`:
 
 ```powershell
-cd C:\browersos-build\src
+cd D:\browseros-build\src
 git clone --verbose https://chromium.googlesource.com/chromium/src.git src.tmp
 # If src.tmp completes, rename to src/.
 ```

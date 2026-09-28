@@ -112,11 +112,11 @@ false` so a queued build doesn't accidentally cancel a sibling.
 
 A single Chromium build consumes ~150 GB. Two consecutive builds
 will exhaust 300 GB. The self-hosted runner should have a cron job
-that cleans `C:\browersos-build\src\out` between builds:
+that cleans `D:\browseros-build\src\out` between builds:
 
 ```powershell
 # Optional cleanup cron (add to Task Scheduler)
-Get-ChildItem C:\browersos-build\src\out -Recurse -Force -ErrorAction SilentlyContinue |
+Get-ChildItem D:\browseros-build\src\out -Recurse -Force -ErrorAction SilentlyContinue |
   Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-7) } |
   Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 ```

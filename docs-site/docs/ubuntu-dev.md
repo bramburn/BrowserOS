@@ -80,14 +80,14 @@ projected at 16–24 h here (vs. 7–13 h on a modern Windows desktop).
 ## Workspace layout on the box
 
 ```
-~/browersos-src/                   # the fork clone (matches C:\dev\BrowserOs)
+~/browersos-src/                   # the fork clone (matches D:\BrowserOs)
 ├── packages/browseros/            # pipx-installed as editable
 ├── tools/
 │ ├── ubuntu-build.sh              # orchestrator
 │ └── ubuntu-launch.sh             # detached-launch wrapper
 └── ...
 
-~/browseros-build/                  # build root (matches C:\browersos-build\)
+~/browseros-build/                  # build root (matches D:\browseros-build\)
 ├── src/                            # Chromium source (post-setup)
 ├── .gclient                        # depot_tools config (sibling of src/)
 ├── build.log                       # orchestrator log

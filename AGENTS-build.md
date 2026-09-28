@@ -36,6 +36,31 @@ $ browseros build --setup --prep --build --sign --package
 | 4 sign | `browseros build --sign` | `sign_windows` / `sign_macos` / `sign_linux` (linux is officially a no-op per `--list`) | 2–5 min on Windows; seconds on Linux |
 | 5 package | `browseros build --package` | `package_windows` (mini_installer.exe) / `package_macos` (DMG) / `package_linux` (AppImage + .deb) | 1–3 min |
 
+### Prerequisite — fetching the Chromium tree
+
+Phase 1 assumes `src/` already exists: `git_setup` runs `git fetch --tags`
+and `gclient sync` against an existing checkout, it does not create one.
+On a fresh machine bootstrap the source first with:
+
+```powershell
+& <repo>\tools\fetch-chromium.ps1        # -BuildRoot defaults to D:\browseros-build
+```
+
+It writes a `.gclient` whose `cache_dir` sits **inside** the build root, then
+syncs, checks out the tag from `CHROMIUM_VERSION`, and re-syncs so the DEPS
+match that tag. ~50 GB total (~30 GB `src/` + ~20 GB CIPD cache); 1–3 h.
+Run it detached via `Start-Process -WindowStyle Hidden` and tail
+`<BuildRoot>\logs\fetch-chromium.log`.
+
+Two traps this script exists to avoid:
+
+- **A `cache_dir` left on C: refills the system drive.** gclient re-downloads
+  the whole ~20 GB CIPD cache wherever `cache_dir` points, even if `src/` is on
+  another volume. That is what `C:\browersos-build\.gclient_cache` was.
+- **Syncing DEPS before checking out the tag leaves the wrong revisions.**
+  `gclient sync` resolves DEPS for the checked-out commit, so the tag checkout
+  has to happen *before* the second sync, not after.
+
 Module authority: `packages/browseros/build/modules/<area>/<step>.py`
 under `setup/`, `patches/`, `apply/`, `extract/`, `compile/`, `feature/`,
 `resources/`, `package/`, `sign/`, `ota/`, `release/`, `storage/`,

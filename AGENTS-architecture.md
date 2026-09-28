@@ -78,7 +78,7 @@ typically talks to in 2026+).
 ## Repo map
 
 ```
-C:/dev/BrowserOs/
+D:/BrowserOs/
 ├── AGENTS.md ← strategic context, top-level file map
 ├── AGENTS-architecture.md ← THIS FILE (opinionated architecture)
 ├── AGENTS-build.md ← build pipeline (gclient, browseros CLI, release)
