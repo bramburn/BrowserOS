@@ -66,10 +66,46 @@ present and simply unbranded or undiscoverable**.
 | Item absent | Branding/gating stripped it | Proceed to [Route A](#route-a--native-c-patch-recommended) |
 | Item present but errors or does nothing | Broken or mis-wired upstream | Proceed to [Route A](#route-a--native-c-patch-recommended) |
 
-Everything after this point assumes **Route A**. If Step 0 lands on Route C,
-stop reading — that plan is a tenth of the work.
+### Step 0 result: **item absent** (2026-09-28)
 
-## Route A — native C++ patch (recommended)
+The user right-clicked a page in the built BrowserOS and the stock
+*Cast, save, and share → Screenshot…* entry is **not there**. So:
+
+- **Route A is confirmed.** The work is real, not redundant.
+- **Route C is dead.** Deleting it in a later pass; it is kept below only
+  as a record of the branch that was considered and ruled out.
+
+This also retires the one favourable assumption in the plan. The absence is
+*not* explained by a stale patch set — `chromium_patches/` contains zero
+references to `IDS_SHOW_SCREENSHOT`, `kShowScreenshot` or the share submenu,
+and `renderer_context_menu.cc` is not patched by any feature block. Nothing
+in this repo removes the item.
+
+Two explanations remain, and the tree is needed to separate them:
+
+1. Stock Chromium at `148.0.7778.97` gates the whole *Cast, save, and share*
+   submenu behind branded-Chrome conditions that a Chromium build does not
+   meet. In that case the item never existed here and Route A is adding new
+   capability.
+2. Something strips it at runtime rather than at patch time — a feature
+   default, a `FieldTrialList` condition, or an enterprise policy. That would
+   live in a file this repo does not patch, and would need `grep` over the
+   real tree.
+
+**Do this first, once the tree is on disk** — it is a one-line answer and it
+decides whether Route A builds a menu item or a submenu:
+
+```powershell
+Select-String -Path D:\browseros-build\src\chrome\browser\renderer_context_menu.cc `
+  -Pattern 'Screenshot','save and share'
+```
+
+If the string is present, it is gated at runtime and you must find the gate.
+If it is absent entirely, the whole share block is compiled out.
+
+Everything after this point assumes **Route A**.
+
+## Route A — native C++ patch (confirmed path)
 
 BrowserOS-native capture, independent of the MCP server and of extension
 release cycles.
