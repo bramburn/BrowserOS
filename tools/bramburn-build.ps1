@@ -22,16 +22,23 @@
 #
 # Usage (from PowerShell, NOT from the bash tool):
 #   Start-Process -FilePath "C:\Python312\python.exe" `
-#     -ArgumentList "C:\dev\BrowserOs\tools\bramburn-build.ps1" `
+#     -ArgumentList "<repo>\tools\bramburn-build.ps1" `
 #     -WindowStyle Hidden `
 #     -RedirectStandardOutput "C:\temp\browseros-build-stdout.log" `
 #     -RedirectStandardError "C:\temp\browseros-build-stderr.log"
+#
+# Disk layout (2026-09-28): the Chromium tree is ~150 GB (50 GB gclient sync +
+# ~100 GB src/out/Default after autoninja), so it lives on D: rather than C:.
+# ForkRoot is derived from this script's own location instead of being hardcoded,
+# so the orchestrator keeps working wherever the checkout is moved. Override
+# either with -ForkRoot / -ChromiumSrc.
 
 param(
-    [string]$ForkRoot = "C:\dev\BrowserOs",
-    [string]$ChromiumSrc = "C:\browersos-build\src",
+    [string]$ForkRoot = (Split-Path -Parent $PSScriptRoot),
+    [string]$ChromiumSrc = "D:\browseros-build\src",
     [string]$LogDir = "C:\temp\browseros-build",
     [string]$BrowserosExe = "C:\Python312\Scripts\browseros.exe",
+    [string]$DepotTools = "C:\dev\depot_tools",
     [int]$StopAfterPhase = 0
 )
 
@@ -41,6 +48,13 @@ $ErrorActionPreference = "Continue"
 # function) for Start-Process to inherit it.
 $env:PYTHONIOENCODING = "utf-8"
 $env:PYTHONUTF8 = "1"
+
+# The browseros CLI invokes `gn.bat` (configure) and `autoninja.bat` (compile)
+# by bare name, so depot_tools must be on PATH or both phases die with
+# "command not found". depot_tools is not on PATH by default on this box.
+if ($env:PATH -notlike "*$DepotTools*") {
+    $env:PATH = $DepotTools + ";" + $env:PATH
+}
 $LogFile = Join-Path $LogDir "browseros-build.log"
 $StateFile = Join-Path $LogDir "browseros-build-state.json"
 
