@@ -8,9 +8,18 @@
 > **Scope:** Windows. Other OSes are out of scope until the Windows build is
 > green (see [`docs/WINDOWS_BUILD.md`](../docs/WINDOWS_BUILD.md)).
 >
+> **Decision (2026-09-28): implement this — but only after the Windows build
+> succeeds.** Do not begin Step 1 until `docs/WINDOWS_BUILD.md` reports a
+> completed `autoninja` run that produced `chrome.exe`. Two things are blocked
+> on that, not just one: every Chromium-side signature below needs the tree to
+> verify against, and the **Step 0 gate needs a running browser** to answer
+> whether Chrome already ships this item. Implementing before then would
+> produce a diff written against remembered APIs rather than real ones, which
+> is the failure mode this whole plan is structured to avoid.
+>
 > **Repo-local paths** are relative to this repo. **Chromium-tree paths** are
 > paths inside `<chromium_src>/` after `gclient sync`, and are *not* files you
-> edit directly — see [How a change lands](#how-a-change-lives-in-this-repo).
+> edit directly — see [File changes](#file-changes).
 
 ## Goal
 
@@ -52,10 +61,10 @@ present and simply unbranded or undiscoverable**.
 
 | Observation | What it means | Next step |
 |---|---|---|
-| Item present, works, just unbranded | Stock Chromium already delivers it | **Stop.** Only branding/placement work remains — see [Route C](#route-c-promote-the-stock-item). |
-| Item present but opens Chrome-branded UI | Stock item works, wrong product chrome | [Route C](#route-c-promote-the-stock-item) |
-| Item absent | Branding/gating stripped it | Proceed to [Route A](#route-a-native-c-patch-recommended) |
-| Item present but errors or does nothing | Broken or mis-wired upstream | Proceed to [Route A](#route-a-native-c-patch-recommended) |
+| Item present, works, just unbranded | Stock Chromium already delivers it | **Stop.** Only branding/placement work remains — see [Route C](#route-c--promote-the-stock-item). |
+| Item present but opens Chrome-branded UI | Stock item works, wrong product chrome | [Route C](#route-c--promote-the-stock-item) |
+| Item absent | Branding/gating stripped it | Proceed to [Route A](#route-a--native-c-patch-recommended) |
+| Item present but errors or does nothing | Broken or mis-wired upstream | Proceed to [Route A](#route-a--native-c-patch-recommended) |
 
 Everything after this point assumes **Route A**. If Step 0 lands on Route C,
 stop reading — that plan is a tenth of the work.
