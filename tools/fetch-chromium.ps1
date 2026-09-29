@@ -170,8 +170,12 @@ Write-Log "wrote $gclientPath (cache_dir -> $cacheDirPy)"
 # and gclient has to find .gclient one level up from where it will place it.
 Write-State "bootstrap-sync" "running"
 Write-Log "=== step 1/2: gclient sync (bootstrap, ~50 GB, 1-3 h) ==="
+# --shallow is fine at the bootstrap (we sync the default branch here); only
+# the re-sync after moving to the older pin needs the extra history. --jobs 8
+# is not optional: at the default -j 32 this trips googlesource's rate limiter
+# and depot_tools reports it as ClobberNeeded "Corrupted cache."
 $bootstrapExit = Invoke-Native -Exe $Gclient `
-    -Args @("sync", "--no-history", "--shallow") -WorkDir $BuildRoot
+    -Args @("sync", "--no-history", "--shallow", "--jobs", "8") -WorkDir $BuildRoot
 Write-Log ("gclient sync exit=" + $bootstrapExit)
 if ($bootstrapExit -ne 0) {
     Write-Log "bootstrap sync failed -- see $LogFile" "ERROR"
@@ -186,37 +190,79 @@ if ($SkipTagCheckout) {
     exit 0
 }
 
-# Step 2: move to the pinned tag, then re-sync so DEPS match that tag.
-# Syncing DEPS at main and then checking out an old tag leaves the tree with
+# Step 2: move to the pinned commit, then re-sync so DEPS match that commit.
+# Syncing DEPS at main and then checking out an old pin leaves the tree with
 # the wrong dependency revisions -- the checkout and the DEPS must agree.
+#
+# We pin by BASE_COMMIT (a SHA), not by tag. chromium.googlesource.com's
+# mirror of chromium/src stopped receiving release tags after M59 -- the
+# highest tag there is 59.0.3065.2, and `git ls-remote --tags` returns ~9959
+# tags with no 14x.* among them. So `git checkout tags/148.0.7778.97` can
+# never resolve and fails with "couldn't find remote ref". BASE_COMMIT is the
+# very commit that increments chrome/VERSION to the pinned string, so it is
+# the same commit the tag would have named.
 $version = Get-PinnedVersion
 if (-not $version) {
     Write-Log "could not read pinned version" "ERROR"
     Write-State "tag-checkout" "failed" "CHROMIUM_VERSION unreadable"
     exit 1
 }
-Write-State "tag-checkout" "running" $version
-Write-Log ("=== step 2/2: checking out tag " + $version + " ===")
 
-$fetchExit = Invoke-Native -Exe "git" -Args @("fetch", "--tags", "--force") -WorkDir $SrcDir
+$BaseCommitFile = Join-Path $ForkRoot "packages\browseros\BASE_COMMIT"
+$baseCommit = $null
+if (Test-Path $BaseCommitFile) {
+    $baseCommit = (Get-Content $BaseCommitFile -Raw).Trim()
+}
+if (-not $baseCommit) {
+    Write-Log "BASE_COMMIT missing or empty at $BaseCommitFile" "ERROR"
+    Write-State "tag-checkout" "failed" "BASE_COMMIT unreadable"
+    exit 1
+}
+if ($baseCommit -notmatch '^[0-9a-f]{40}$') {
+    Write-Log "BASE_COMMIT is not a 40-char SHA: '$baseCommit'" "ERROR"
+    Write-State "tag-checkout" "failed" "BASE_COMMIT malformed"
+    exit 1
+}
+
+Write-State "tag-checkout" "running" $version
+Write-Log ("=== step 2/2: checking out base commit " + $version + " (" + $baseCommit.Substring(0,12) + ") ===")
+
+# googlesource accepts fetch-by-SHA, so this resolves the exact pinned commit
+# without needing a tag or a full-history fetch.
+$fetchExit = Invoke-Native -Exe "git" -Args @("fetch", "--force", "origin", $baseCommit) -WorkDir $SrcDir
 if ($fetchExit -ne 0) {
-    Write-Log "git fetch --tags failed" "ERROR"
+    Write-Log "git fetch of base commit failed -- see $LogFile" "ERROR"
     Write-State "tag-checkout" "failed" "git fetch exit $fetchExit"
     exit 1
 }
 
-$checkoutExit = Invoke-Native -Exe "git" -Args @("checkout", "tags/$version") -WorkDir $SrcDir
+$checkoutExit = Invoke-Native -Exe "git" -Args @("checkout", $baseCommit) -WorkDir $SrcDir
 if ($checkoutExit -ne 0) {
-    Write-Log "git checkout tags/$version failed" "ERROR"
+    Write-Log "git checkout $baseCommit failed" "ERROR"
     Write-State "tag-checkout" "failed" "git checkout exit $checkoutExit"
     exit 1
 }
 
 $head = (& git -C $SrcDir rev-parse HEAD 2>&1).ToString().Trim()
 Write-Log ("HEAD is now " + $head)
-Write-Log "re-syncing DEPS to match the tag"
+if ($head -ne $baseCommit) {
+    Write-Log "HEAD does not match BASE_COMMIT (got $head)" "ERROR"
+    Write-State "tag-checkout" "failed" "HEAD mismatch after checkout"
+    exit 1
+}
+Write-Log "HEAD matches BASE_COMMIT"
+
+Write-Log "re-syncing DEPS to match the pinned commit"
+# --no-history WITHOUT --shallow for the re-sync: a cache mirror bootstrapped
+# with --shallow inherits a depth boundary from the default branch, and DEPS
+# revisions for an older pinned commit can sit below it. gclient then reports
+# "rejected <sha> because shallow roots are not allowed to be updated" and
+# aborts the entire sync. --jobs 8 keeps us under googlesource's rate limiter
+# (gclient defaults to -j 32, which trips HTTP 429; depot_tools then misreports
+# it as ClobberNeeded "Corrupted cache."). Measured: dozens of 429s at 32,
+# zero at 8.
 $resyncExit = Invoke-Native -Exe $Gclient `
-    -Args @("sync", "--no-history", "--shallow") -WorkDir $BuildRoot
+    -Args @("sync", "--no-history", "--jobs", "8") -WorkDir $BuildRoot
 if ($resyncExit -ne 0) {
     Write-Log "DEPS re-sync failed -- see $LogFile" "ERROR"
     Write-State "tag-checkout" "failed" "resync exit $resyncExit"

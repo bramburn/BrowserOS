@@ -60,11 +60,20 @@ version. Either satisfies the C++ workload.
 & D:\BrowserOs\tools\bramburn-build.ps1 -StopAfterPhase 5
 ```
 
-Run it detached; the bash tool's 5-minute ceiling will kill it otherwise:
+Run it detached; the bash tool's 5-minute ceiling will kill it otherwise.
+**`bramburn-build.ps1` is PowerShell, not Python** — launching it with
+`python.exe` fails with a `SyntaxError` on the first `param(...)` line:
+
+```
+  File "D:\BrowserOs\tools\bramburn-build.ps1", line 37
+    [string]$ForkRoot = (Split-Path -Parent $PSScriptRoot),
+            ^
+SyntaxError: invalid syntax
+```
 
 ```powershell
-Start-Process -FilePath "C:\Python312\python.exe" `
-  -ArgumentList "D:\BrowserOs\tools\bramburn-build.ps1" -StopAfterPhase 3 `
+Start-Process -FilePath "powershell.exe" `
+  -ArgumentList "-NoProfile","-ExecutionPolicy","Bypass","-File","D:\BrowserOs\tools\bramburn-build.ps1","-StopAfterPhase","3" `
   -WindowStyle Hidden `
   -RedirectStandardOutput "D:\browseros-build\logs\build-stdout.log" `
   -RedirectStandardError  "D:\browseros-build\logs\build-stderr.log"

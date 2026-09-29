@@ -1,0 +1,72 @@
+diff --git a/chrome/browser/browseros/update/browseros_update.mojom b/chrome/browser/browseros/update/browseros_update.mojom
+new file mode 100644
+index 0000000000000..0000000000000
+--- /dev/null
++++ b/chrome/browser/browseros/update/browseros_update.mojom
+@@ -0,0 +1,66 @@
++// Copyright 2024 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++module chrome.mojom;
++
++// BrowserOS's own update service, surfaced to the About page.
++//
++// Chromium's built-in update status plumbing (components/update_client) is
++// compiled out of unbranded builds, so the About page has nothing to show on
++// its own. This interface backs the BrowserOS update card instead.
++//
++// The About page never mutates state directly: it asks the service to act and
++// then re-reads the snapshot, so the service stays the single owner.
++
++enum UpdateStateKind {
++  kIdle,
++  kChecking,
++  kUpdateAvailable,
++  kDownloading,
++  kVerifying,
++  kReadyToInstall,
++  kInstalling,
++  kAwaitingRestart,
++  kPaused,
++  kNotSupported,
++  kFailed,
++};
++
++// A complete picture of the updater. Strings rather than an enum for the
++// human-readable fields so the WebUI can render them without another round trip.
++struct BrowserOSUpdateState {
++  // The UpdateStateKind as a string, so TypeScript does not need the enum
++  // mirrored on its side.
++  string state;
++  string current_version;
++  string available_version;
++  string channel;
++  string notes_url;
++  string error;
++
++  // 0..100, or -1 when indeterminate.
++  int32 download_progress;
++};
++
++interface BrowserOSUpdateHandler {
++  // Returns the current state immediately. The page also receives
++  // NotifyUpdateState() on every subsequent change, which is what drives the
++  // download progress animation.
++  GetUpdateState() => (BrowserOSUpdateState state);
++
++  // Sent by the browser whenever the state changes. The page must implement
++  // this; there is no reply.
++  NotifyUpdateState(BrowserOSUpdateState state);
++
++  // User-initiated check. A no-op if one is already in flight.
++  CheckForUpdate();
++
++  // Applies a staged update. Only valid in kReadyToInstall; the service
++  // ignores it otherwise.
++  TriggerInstall();
++
++  // Suppresses offers of |version| specifically. A strictly newer version is
++  // still offered.
++  SkipVersion(string version);
++};

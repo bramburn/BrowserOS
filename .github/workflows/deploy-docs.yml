@@ -38,7 +38,11 @@ jobs:
 
       - name: Install dependencies
         working-directory: docs-site
-        run: npm ci
+        run: npm install --no-audit --no-fund
+
+# docs-site/ has no committed package-lock.json, so `npm ci`
+ # (which requires a lockfile) would fail. Use `npm install`
+ # and let CI generate the lockfile as a side effect.
 
       - name: Build website
         working-directory: docs-site

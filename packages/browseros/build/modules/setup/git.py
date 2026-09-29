@@ -17,6 +17,7 @@ from ...common.utils import (
     log_success,
     IS_LINUX,
     IS_WINDOWS,
+    join_paths,
     safe_rmtree,
 )
 
@@ -36,13 +37,34 @@ class GitSetupModule(CommandModule):
     def execute(self, ctx: Context) -> None:
         log_info(f"\n🔀 Setting up Chromium {ctx.chromium_version}...")
 
-        log_info("📥 Fetching all tags from remote...")
-        run_command(["git", "fetch", "--tags", "--force"], cwd=ctx.chromium_src)
-
-        self._verify_tag_exists(ctx)
-
-        log_info(f"🔀 Checking out tag: {ctx.chromium_version}")
-        run_command(["git", "checkout", f"tags/{ctx.chromium_version}"], cwd=ctx.chromium_src)
+        # chromium.googlesource.com/chromium/src.git stopped receiving release
+        # tags after M59 -- the highest tag on that remote is 59.0.3065.2, and
+        # `git ls-remote --tags origin` returns ~9959 tags with no 14x.* at all.
+        # So `git checkout tags/<version>` can never succeed for a current pin
+        # and fails with "fatal: couldn't find remote ref". BASE_COMMIT is the
+        # anchor this repo actually ships: for 148.0.7778.97 it is the very
+        # commit that increments chrome/VERSION to that string, so pinning by
+        # SHA and pinning by version are the same commit.
+        base_commit = self._read_base_commit(ctx)
+        if base_commit:
+            log_info(f"📥 Fetching base commit {base_commit[:12]} from remote...")
+            run_command(
+                ["git", "fetch", "--force", "origin", base_commit], cwd=ctx.chromium_src
+            )
+            log_info(f"🔀 Checking out base commit: {base_commit[:12]}")
+            run_command(["git", "checkout", base_commit], cwd=ctx.chromium_src)
+        else:
+            log_warning(
+                "⚠️  BASE_COMMIT not found -- falling back to tag checkout. "
+                "This will fail for any version newer than M59."
+            )
+            log_info("📥 Fetching all tags from remote...")
+            run_command(["git", "fetch", "--tags", "--force"], cwd=ctx.chromium_src)
+            self._verify_tag_exists(ctx)
+            log_info(f"🔀 Checking out tag: {ctx.chromium_version}")
+            run_command(
+                ["git", "checkout", f"tags/{ctx.chromium_version}"], cwd=ctx.chromium_src
+            )
 
         # On Linux, depot_tools fetches per-arch sysroots automatically when
         # `.gclient` declares `target_cpus`. Ensure both x64 and arm64 are
@@ -51,12 +73,39 @@ class GitSetupModule(CommandModule):
             self._ensure_gclient_target_cpus(ctx, ["x64", "arm64"])
 
         log_info("📥 Syncing dependencies (this may take a while)...")
+        # --no-history WITHOUT --shallow here. A cache mirror bootstrapped with
+        # --shallow inherits a depth boundary from the default branch, and DEPS
+        # revisions for an older pinned commit can sit below it -- gclient then
+        # reports "rejected <sha> because shallow roots are not allowed to be
+        # updated" and aborts the whole sync.
+        #
+        # --jobs 8: gclient defaults to -j 32 parallel git fetches, which trips
+        # googlesource's rate limiter (HTTP 429). depot_tools then raises
+        # ClobberNeeded() whose own comment reads "Corrupted cache." -- it is
+        # not corruption. Measured: dozens of 429s at -j 32, zero at -j 8.
         if IS_WINDOWS():
-            run_command(["gclient.bat", "sync", "-D", "--no-history", "--shallow"], cwd=ctx.chromium_src)
+            run_command(
+                ["gclient.bat", "sync", "-D", "--no-history", "--jobs", "8"],
+                cwd=ctx.chromium_src,
+            )
         else:
-            run_command(["gclient", "sync", "-D", "--no-history", "--shallow"], cwd=ctx.chromium_src)
+            run_command(
+                ["gclient", "sync", "-D", "--no-history", "--jobs", "8"],
+                cwd=ctx.chromium_src,
+            )
 
         log_success("Git setup complete")
+
+    def _read_base_commit(self, ctx: Context) -> str:
+        """Read the pinned Chromium commit SHA from BASE_COMMIT.
+
+        Returns an empty string when the file is missing, so callers can fall
+        back to tag-based checkout for older checkouts of this repo.
+        """
+        base_commit_file = join_paths(ctx.root_dir, "BASE_COMMIT")
+        if not base_commit_file.exists():
+            return ""
+        return base_commit_file.read_text().strip()
 
     def _ensure_gclient_target_cpus(self, ctx: Context, required: List[str]) -> None:
         """Idempotently add `target_cpus` to .gclient so depot_tools fetches

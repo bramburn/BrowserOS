@@ -1,0 +1,118 @@
+diff --git a/chrome/browser/browseros/update/BUILD.gn b/chrome/browser/browseros/update/BUILD.gn
+new file mode 100644
+index 0000000000000..0000000000000
+--- /dev/null
++++ b/chrome/browser/browseros/update/BUILD.gn
+@@ -0,0 +1,112 @@
++# Copyright 2024 The Chromium Authors
++# Use of this source code is governed by a BSD-style license that can be
++# found in the LICENSE file.
++
++import("//build/config/chrome_build.gni")
++
++declare_args() {
++  # Base URL the in-browser updater fetches manifests from. Override to point
++  # a dev build at a staging bucket:
++  #   gn gen out/Dev --args='browseros_update_base_url="https://staging.example.com/browseros"'
++  browseros_update_base_url = "https://cdn.bramburn.com/browseros"
++
++  # Arguments passed to a downloaded installer for a quiet in-place update.
++  # Must match what .github/workflows/release-windows.yml actually produces.
++  # Leaving it empty is safe: the installer runs interactively and the
++  # service still confirms the result by looking for the versioned
++  # Application\ directory afterwards.
++  browseros_update_installer_args = [
++    "--silent",
++    "--install",
++    "--do-not-launch-browser",
++  ]
++}
++
++# Generates browseros_update.mojom.{h,cc,js-ts}. The generated header lives at
++# chrome/browser/browseros/update/browseros_update.mojom.h.
++mojom("browseros_update_mojo") {
++  sources = [ "browseros_update.mojom" ]
++  public_deps = [ "//mojo/public/mojom/base" ]
++}
++
++# The updater itself.
++#
++# Deliberately a plain source_set rather than a patch into
++# components/update_client: Chromium's own updater is compiled out of
++# unbranded builds, and owning this code is what keeps it working across
++# Chromium bumps. See docs/UPDATE_DESIGN.md.
++source_set("browseros_update") {
++  sources = [
++    "browseros_update_checker.cc",
++    "browseros_update_checker.h",
++    "browseros_update_config.h",
++    "browseros_update_downloader.cc",
++    "browseros_update_downloader.h",
++    "browseros_update_installer.h",
++    "browseros_update_manifest.cc",
++    "browseros_update_manifest.h",
++    "browseros_update_prefs.cc",
++    "browseros_update_prefs.h",
++    "browseros_update_proxy.cc",
++    "browseros_update_proxy.h",
++    "browseros_update_service.cc",
++    "browseros_update_service.h",
++    "browseros_update_verifier.cc",
++    "browseros_update_verifier.h",
++  ]
++
++  # Exactly one platform half is compiled. Both fail closed on platforms with
++  # no implemented trust chain, so the service can never reach
++  # kReadyToInstall there.
++  if (is_win) {
++    sources += [
++      "browseros_update_installer_win.cc",
++      "browseros_update_verifier_win.cc",
++    ]
++  } else {
++    sources += [
++      "browseros_update_installer_stub.cc",
++      "browseros_update_verifier_stub.cc",
++    ]
++  }
++
++  defines = [ "BROWSEROS_UPDATE_BASE_URL=\"$browseros_update_base_url\"" ]
++
++  public_deps = [
++    ":browseros_update_mojo",
++    "//base",
++    "//chrome/common",
++    "//components/pref_registry",
++    "//mojo/public/mojom/base",
++    "//net",
++    "//url",
++  ]
++
++  deps = [
++    "//base",
++    "//chrome/browser/browseros/update:browseros_update_mojo",
++    "//components/pref_registry",
++    "//crypto",
++    "//net",
++    "//net/traffic_annotation:network_traffic_annotation",
++    "//url",
++  ]
++}
++
++group("browseros_update_tests") {
++  testonly = true
++  deps = [
++    ":browseros_update_manifest_unittest",
++    ":browseros_update_checker_unittest",
++  ]
++}
++
++test("browseros_update_manifest_unittest") {
++  sources = [ "browseros_update_manifest_unittest.cc" ]
++  deps = [ ":browseros_update" ]
++}
++
++test("browseros_update_checker_unittest") {
++  sources = [ "browseros_update_checker_unittest.cc" ]
++  deps = [ ":browseros_update" ]
++}

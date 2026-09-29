@@ -11,6 +11,33 @@ from .utils import run_git_command, file_exists_in_commit, reset_file_to_commit
 from ...common.utils import log_info, log_error, log_success, log_warning
 
 
+# Git-generated diffs (including `git format-patch` output, which puts an
+# author/Subject preamble above the diff) always contain a `diff --git` header
+# within the first few lines. Scanning a bounded head rather than the whole
+# file keeps this cheap and avoids matching a diff quoted inside documentation.
+_PATCH_HEAD_LINES = 40
+
+
+def _looks_like_patch(path: Path) -> bool:
+    """True if the file's head contains a unified-diff `diff --git` header.
+
+    This is a content test on purpose. The name-based filter alone used to let
+    every non-diff file in chromium_patches/ through -- notably 150 `AGENTS.md`
+    guides -- and `git apply` rejects those with exit 128
+    ("No valid patches in input"), which `apply_all_patches` turns into
+    RuntimeError("Failed to apply N patches") and aborts the whole prep phase.
+
+    `.binary`/`.deleted`/`.rename` sidecars still pass this test, so the
+    name-based exclusions below must be kept as well.
+    """
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as f:
+            head = [next(f, "") for _ in range(_PATCH_HEAD_LINES)]
+    except OSError:
+        return False
+    return any(line.startswith("diff --git ") for line in head)
+
+
 def find_patch_files(patches_dir: Path) -> List[Path]:
     """Find all valid patch files in a directory.
 
@@ -32,6 +59,7 @@ def find_patch_files(patches_dir: Path) -> List[Path]:
             and not p.name.endswith(".binary")
             and not p.name.endswith(".rename")
             and not p.name.startswith(".")
+            and _looks_like_patch(p)
         ]
     )
 
