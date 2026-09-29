@@ -2,15 +2,15 @@
 
 > Sub-package AGENTS file. The Bun MCP server, the open-source modern
 > implementation of the BrowserOS MCP protocol. For the cross-repo
-> architecture see [`../../../AGENTS-architecture.md`](../../../AGENTS-architecture.md).
+> architecture see [`../../../../AGENTS-architecture.md`](../../../../AGENTS-architecture.md).
 > For the parent monorepo see
 > [`../../AGENTS.md`](../../AGENTS.md). For the build pipeline see
-> [`../../../AGENTS-build.md`](../../../AGENTS-build.md).
+> [`../../../../AGENTS-build.md`](../../../../AGENTS-build.md).
 
 ## What's here
 
 The MCP server. Listens on multiple ports (configurable; defaults set
-in `packages/shared/src/constants/ports.ts`):
+in `packages/browseros-agent/packages/shared/src/constants/ports.ts`):
 - `serverPort` — primary Hono HTTP server for `/chat`, `/agents`, etc.
 - `agentPort` — internal agent API.
 - `extensionPort` — extension-ws / SSE.
@@ -23,7 +23,7 @@ AI Agent / MCP Client → Hono HTTP (serverPort) → tool handler
  CDP (cdpPort) → BrowserOS / Chrome APIs
 ```
 
-24+ MCP tools are registered in `src/tools/registry.ts`. The
+61 MCP tools are registered in `src/tools/registry.ts`. The
 `ToolRegistry` class (in `src/tools/tool-registry.ts`) deduplicates by
 name and is the canonical catalog.
 
@@ -79,7 +79,7 @@ apps/server/
 │ │ ├── browser.ts
 │ │ └── backends/cdp.ts
 │ ├── lib/                           ← shared internals
-│ │ ├── agents/runtime.ts            ← Claude/Codex/Hermes config
+│ │ ├── agents/runtime/              ← Claude/Codex/Hermes runtimes (index.ts + 6)
 │ │ ├── clients/
 │ │ ├── container/                   ← sandboxing
 │ │ ├── db/                          ← Drizzle + SQLite
@@ -93,7 +93,7 @@ apps/server/
 │ │ └── browseros-dir.ts             ← writes ~/.browseros/server-config.json
 │ ├── monitoring/                    ← eval judge + monitoring
 │ │ └── judge/
-│ ├── tools/                         ← MCP tools (24+)
+│ ├── tools/                         ← MCP tools (61)
 │ │ ├── framework.ts                 ← ToolDefinition base
 │ │ ├── registry.ts                  ← CANONICAL tool list (R10)
 │ │ ├── tool-registry.ts             ← ToolRegistry class
@@ -112,14 +112,13 @@ apps/server/
 │ │ ├── nudges.ts
 │ │ ├── output-file.ts
 │ │ ├── browseros-info.ts
-│ │ ├── ElementProperties/           ← CDP element property helpers
+│ │ ├── ElementProperties            ← (0-byte placeholder file)
 │ │ ├── filesystem/                  ← bash, edit, find, grep, ls, read, write, utils
 │ │ └── acl/                         ← agentic contrastive learning
 │ │   ├── acl-scorer.ts
 │ │   ├── acl-edit-distance.ts
 │ │   ├── acl-embeddings.ts
 │ │   └── acl-stopwords.ts
-│ ├── graph/                         ← (Drizzle schema placeholder)
 │ └── tests/                         ← see "Testing" below
 ├── graph/                           ← top-level Drizzle config dir
 ├── tests/                           ← see "Testing" below
@@ -142,7 +141,8 @@ auto-pick up tools at startup.
 
 ### S3 — Hono + zod for all routes
 `api/server.ts` builds the Hono app. Each route file exports
-`register<X>Routes(app: Hono)`. Validate input with zod. Auth via
+`create<X>Routes(deps)` — a factory returning a `Hono<Env>` sub-app, which
+`server.ts` mounts. Validate input with zod. Auth via
 `api/utils/request-auth.ts`. Don't return raw `Response` objects.
 
 ### S4 — Drizzle, not raw SQL
@@ -176,12 +176,12 @@ in `env.ts`. Magic numbers go in `@browseros/shared`.
  templates.
 2. **Register in `src/tools/registry.ts`** (S1). Add the import and
  add to the tools array.
-3. **Add fixtures** at `apps/server/tests/tools/__fixtures__/<tool>/`
- (HTML snapshots, JSON responses).
+3. **Add fixtures** at `apps/server/tests/__fixtures__/`
+ (HTML snapshots in `snapshot.ts`, JSON responses alongside them).
 4. **Add a test** `apps/server/tests/tools/<tool>.test.ts`.
 5. Run `bun run test:tools`.
 6. If your tool is in the `acl/` family, also add a scorer entry.
-7. Cross-ref in `apps/agent/components/mcp-settings/`.
+7. Cross-ref in `apps/agent/entrypoints/app/mcp-settings/`.
 
 ### "Add an HTTP route"
 1. Create `apps/server/src/api/routes/<route>.ts` exporting a Hono
@@ -198,7 +198,7 @@ in `env.ts`. Magic numbers go in `@browseros/shared`.
 2. **Register in `src/agent/provider-factory.ts`**.
 3. Add config key to `ServerConfigSchema` in `src/config.ts`.
 4. Add to `packages/browseros-agent/config.sample.json`.
-5. UI in `apps/agent/components/ai-settings/`.
+5. UI in `apps/agent/entrypoints/app/ai-settings/`.
 
 ### "Add a DB table / column"
 1. Edit `apps/server/src/lib/db/schema/<table>.ts`.
@@ -222,14 +222,13 @@ in `env.ts`. Magic numbers go in `@browseros/shared`.
 ## Testing
 
 ```bash
-# From packages/browseros-agent
-bun run test                 # all tool tests
-bun run test:tools           # alias for tool tests
+# From packages/browseros-agent/apps/server
+bun run test                 # all groups (test:all)
+bun run test:tools           # tool tests
 bun run test:integration     # HTTP route integration
-bun run test:sdk             # agent SDK
 bun run test:agent           # agent tests
 bun run test -- --watch      # watch mode
-bun --env-file=.env.development test apps/server/tests/path/to/file.test.ts
+bun --env-file=.env.development test tests/path/to/file.test.ts
 ```
 
 Tool tests need a running BrowserOS with a CDP port. The test harness
@@ -239,7 +238,7 @@ each tool's full handler. Mock-only tests live at `tests/lib/`.
 ## Cross-references
 
 - [`../../AGENTS.md`](../../AGENTS.md) — Bun monorepo parent.
-- [`../../../AGENTS-architecture.md`](../../../AGENTS-architecture.md) — overall map.
-- [`../../../AGENTS-build.md`](../../../AGENTS-build.md) — build pipeline.
+- [`../../../../AGENTS-architecture.md`](../../../../AGENTS-architecture.md) — overall map.
+- [`../../../../AGENTS-build.md`](../../../../AGENTS-build.md) — build pipeline.
 - [`../../CLAUDE.md`](../../CLAUDE.md) — coding guidelines.
-- [`../../docs/MCP_TOOL_SPEC.md`](../../../docs/MCP_TOOL_SPEC.md) — captured tool schemas for port 9200 (different protocol, similar surface).
+- [`../../../../docs/MCP_TOOL_SPEC.md`](../../../../docs/MCP_TOOL_SPEC.md) — captured tool schemas for port 9200 (different protocol, similar surface).

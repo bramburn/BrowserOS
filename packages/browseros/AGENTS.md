@@ -67,14 +67,14 @@ packages/browseros/
 │ │ └── bundled_extensions.yaml       ← which CRXs ship pre-installed
 │ ├── docs/                           ← build-system docs (e.g. nightly-macos-ci.md)
 │ └── scripts/                        ← helper scripts
-├── chromium_patches/                 ← 342 file replacements
+├── chromium_patches/                 ← 516 unified-diff patches
 │ └── chrome/browser/browseros/       ← where BrowserOS-specific C++ lives
 │ ├── BUILD.gn
 │ ├── core/                          ← prefs, switches, constants
 │ ├── extensions/                    ← bundled_ext loader
 │ ├── metrics/                       ← telemetry
 │ └── server/                        ← bundled MCP server manager + IPC
-├── chromium_files/                   ← brand-new files added to Chromium tree
+├── chromium_files/                   ← 11 whole-file overwrites of existing Chromium paths
 ├── series_patches/                   ← GNU-Quilt ordered patches
 ├── resources/                        ← icons, branding, BROWSEROS_VERSION
 ├── tools/patch                       ← BrowserOS patch CLI
@@ -100,11 +100,31 @@ lives at `chromium_patches/chrome/browser/foo/bar.cc` — **same path**.
 This is the rule that lets `patches/apply/` and `extract/` work
 deterministically. Don't rename or symlink.
 
-### F3 — New files go in `chromium_files/`
-If the file doesn't exist in stock Chromium, drop it under
-`chromium_files/...` and reference it from `features.yaml`. The
-`chromium_replace` module handles wholesale replacement, but
-prefer granular patches when possible.
+Every file under `chromium_patches/` is a **unified diff** starting
+with `diff --git`, not a full copy of the source file. It is applied
+by `build/modules/apply/common.py::apply_single_patch()` as
+`git apply --ignore-whitespace --whitespace=nowarn -p1`, retried with
+`--3way` if the first attempt fails. A patch that deletes an upstream
+file carries a `.deleted` suffix; binary hunks use `.binary`; renames
+use `.rename` — `find_patch_files()` skips all three. A
+`new file mode 100644` line in the diff means the patch **creates** a
+path Chromium does not ship. Never hand-edit a `chromium_patches/`
+file into a "whole replacement" `.cc` — it will not apply.
+
+### F3 — `chromium_files/` is whole-file overwrite, not new files
+`chromium_files/` does **not** introduce new paths into Chromium.
+`build/modules/resources/chromium_replace.py::replace_chromium_files_impl()`
+raises `FileNotFoundError` when the destination does not already exist
+under `chromium_src`, and only otherwise does `shutil.copy2()` over it.
+So every file there must be a **complete replacement for a path Chromium
+already ships** (e.g. a full rewritten `chrome/browser/.../x.cc`).
+
+A path that does not exist upstream belongs in
+`chromium_patches/...` as a diff with `new file mode 100644`, not in
+`chromium_files/`. `chromium_files/` also supports build-type
+variants: `foo.cc.debug` / `foo.cc.release` are selected by
+`ctx.build_type` and suppress the unsuffixed `foo.cc`; the suffix is
+stripped from the destination path.
 
 ### F4 — Series patches are last-resort
 `series_patches/` is for GNU-Quilt-style ordered patches where
@@ -134,9 +154,13 @@ etc., for cross-module concerns.
 
 ### "I'm adding a C++ feature"
 1. Pick the file path. **Mirror Chromium's path** (F2).
-2. If file exists in Chromium, write a full-replacement patch under
- `chromium_patches/<mirror-path>`.
-3. If file is new, write it under `chromium_files/<path>`.
+2. If the file exists in Chromium, write a **unified diff** at
+ `chromium_patches/<mirror-path>` (`diff --git` header, `-p1` paths).
+ If the file does not exist upstream, write the same kind of diff with
+ a `new file mode 100644` line — that is still a `chromium_patches/`
+ file, not a `chromium_files/` file (F3).
+3. Only use `chromium_files/<path>` when you need to ship a
+ complete, hand-maintained copy of a file Chromium already ships.
 4. Add an entry to `features.yaml` under an existing or new feature.
  The `description:` is the eventual git commit message.
 5. If new BUILD.gn is needed, add it at the right `chromium_patches/.../BUILD.gn`.

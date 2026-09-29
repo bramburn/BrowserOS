@@ -446,6 +446,28 @@ Can start in parallel with #1 once we have the fork public:
 - `packages/browseros-agent/packages/shared/AGENTS.md` — Shared
  constants & types (Rule R2 source-of-truth).
 
+### Per-folder AGENTS.md coverage (added 2026-09-28)
+
+**Every directory** under `packages/browseros/` and
+`packages/browseros-agent/` now has its own `AGENTS.md` — 498 folders in
+total, each self-contained: its own purpose, a contents map, rules local
+to that folder, task workflows, and relative links back up. Each file
+cross-links to its nearest ancestor guide, so navigation still runs
+root → package → app → folder.
+
+Rules for working here:
+
+- **Read the nearest `AGENTS.md` before you touch a folder.** They are
+  the authority, and several of them correct claims made higher up.
+- **The root and package guides are summaries and have drifted.** When a
+  leaf file and a parent disagree, the leaf wins — it was written
+  against the current source.
+- **When you move or add a folder, add or move its `AGENTS.md` too.**
+  These files are per-directory by design, not a curated index.
+- Leaf files describe what the code *is*, and say so plainly when a
+  folder is empty, vendored, or generated. A short accurate file beats a
+  padded one.
+
 ### Other reference docs
 
 - `docs/CI_AND_RELEASES.md` — full runbook for the fork's CI, release,

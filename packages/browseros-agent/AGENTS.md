@@ -331,3 +331,33 @@ imports (extensionless), and no `index.ts` re-exports.
 - [`apps/eval/AGENTS.md`](apps/eval/AGENTS.md) — eval harness.
 - [`packages/shared/AGENTS.md`](packages/shared/AGENTS.md) — shared constants.
 - [`docs/MCP_TOOL_SPEC.md`](../../docs/MCP_TOOL_SPEC.md) — captured tool schemas (port 9200).
+
+## Per-folder AGENTS.md (added 2026-09-28)
+
+All **284** directories in this package now carry their own `AGENTS.md`,
+each self-contained. Read the one nearest to what you are changing:
+
+| Area | Where to look |
+|---|---|
+| MCP server | `apps/server/AGENTS.md`, then `src/tools/`, `src/api/routes/`, `src/agent/`, `src/lib/db/`, `tests/` |
+| Browser extension | `apps/agent/AGENTS.md`, then `entrypoints/` (which folders are WXT entries vs route trees), `lib/<feature>/`, `components/` |
+| Go CLI | `apps/cli/AGENTS.md`, then `cmd/`, `config/`, `mcp/`, `npm/` |
+| Eval harness | `apps/eval/AGENTS.md`, then `src/`, `configs/`, `tests/` |
+| Shared packages | `packages/shared/AGENTS.md`, `packages/build-tools/`, `packages/cdp-protocol/` |
+| Dev + Go tooling | `scripts/` (build, codegen, dev inspector), `tools/dev/`, `tools/dogfood/` |
+| Agent tooling | `.claude/`, `.agents/`, `.config/` (worktrunk), `.vscode/`, `docs/` |
+
+**The tree above this table is a summary and has drifted.** Where a
+per-folder file disagrees with it, the per-folder file is correct — it
+was written against the current source. Known corrections: the server
+registers **61** tools in `src/tools/registry.ts`, not "24+"; routes
+export `create<X>Routes(deps)`, not `register<X>Routes(app)`; only
+`entrypoints/app/` and `entrypoints/sidepanel/` are WXT HTML entries
+and every route is hand-mounted in `entrypoints/app/App.tsx`; WXT
+outputs to `dist/`, not `.output/`; `lib/llm-providers/` is flat (no
+per-provider folder); `lib/rpc/` holds only a Hono client, not
+per-service files; `components/ai-settings/` does not exist (the UI is
+at `entrypoints/app/ai-settings/`); the server port is read from
+`chrome.browserOS` prefs, not hard-coded to 9100; `src/graph/` does not
+exist; and the Go CLI is `apps/cli` — `tools/dev` and `tools/dogfood`
+are separate Go modules.

@@ -4,13 +4,19 @@
 > paths, URLs, log types, and shared configuration. **Per architecture
 > Rule R2**, all shared magic constants live here — never inline in
 > apps/. For the cross-repo architecture see
-> [`../../../AGENTS-architecture.md`](../../../AGENTS-architecture.md).
+> [`../../../../AGENTS-architecture.md`](../../../../AGENTS-architecture.md).
 > For the parent monorepo see [`../../AGENTS.md`](../../AGENTS.md).
 
 ## What's here
 
-A pure-TypeScript package with no runtime dependencies (other than
-type-only). Exports from named files (no `index.ts` per Rule R3):
+A TypeScript package with one **runtime dependency: `zod` (`^3.24.2`)**.
+It is not type-only and not dependency-free — `src/schemas/*` and
+`src/constants/role-aware-agents.ts` build zod schemas and arrays at
+import time, so importing a "constant" file can pull zod into the graph.
+Everything under `src/constants/` and `src/types/` is plain `as const` /
+`interface` code; the zod surface is `schemas/llm`,
+`schemas/browser-context`, and `schemas/ui-stream`. Exports from named
+files only (no `index.ts`, per Rule R3):
 
 ```
 packages/shared/
@@ -18,16 +24,30 @@ packages/shared/
 ├── tsconfig.json
 ├── src/
 │ ├── constants/
-│ │ ├── ports.ts                    ← DEFAULT_PORTS, TEST_PORTS
-│ │ ├── timeouts.ts                 ← TIMEOUTS
-│ │ ├── limits.ts                   ← RATE_LIMITS, AGENT_LIMITS, etc.
+│ │ ├── ports.ts                    ← DEFAULT_PORTS, TEST_PORTS, DEV_PORTS,
+│ │ │                                  OAUTH_CALLBACK_PORT, type Ports
+│ │ ├── timeouts.ts                 ← TIMEOUTS, type TimeoutKey,
+│ │ │                                  KLAVIS_PROXY_RETRY_BACKOFF_MS
+│ │ ├── limits.ts                   ← AGENT_LIMITS, TOOL_LIMITS, PAGINATION,
+│ │ │                                  CDP_LIMITS, CONTENT_LIMITS,
+│ │ │                                  AGENT_HARNESS_LIMITS
 │ │ ├── urls.ts                     ← EXTERNAL_URLS
 │ │ ├── paths.ts                    ← PATHS (file-system paths)
-│ │ └── exit-codes.ts               ← EXIT_CODES
+│ │ ├── exit-codes.ts               ← EXIT_CODES, type ExitCode
+│ │ ├── hermes.ts                    ← HERMES_* container/compose constants
+│ │ └── role-aware-agents.ts        ← BROWSEROS_ROLE_TEMPLATES,
+│ │                                    getBrowserOSRoleTemplate()
 │ ├── types/
-│ │ └── logger.ts                   ← LoggerInterface, LogLevel
-│ └── ...
-└── README.md
+│ │ ├── logger.ts                   ← LoggerInterface, LogLevel
+│ │ ├── server-config.ts            ← ServerDiscoveryConfig
+│ │ └── role-aware-agents.ts        ← BrowserOSAgentRoleId and friends
+│ ├── schemas/                      ← zod — the runtime dep lives here
+│ │ ├── llm.ts                      ← LLM_PROVIDERS, LLMProviderSchema, LLMConfigSchema
+│ │ ├── browser-context.ts          ← TabSchema, CustomMcpServerSchema, BrowserContextSchema
+│ │ └── ui-stream.ts                ← UIMessageStreamEventSchema
+│ └── sentry/
+│   └── sanitize.ts                 ← sanitize(), sanitizeEvent()
+└── (no README.md — this file is the reference)
 ```
 
 ## Opinionated rules
@@ -48,7 +68,7 @@ export const TIMEOUTS = {
  LONG: 120_000,
 } as const
 
-export type Timeout = typeof TIMEOUTS[keyof typeof TIMEOUTS]
+export type TimeoutKey = keyof typeof TIMEOUTS
 ```
 
 ### H3 — `package.json` exports are mandatory
@@ -106,5 +126,5 @@ deployment, make it a config field instead.
 ## Cross-references
 
 - [`../../AGENTS.md`](../../AGENTS.md) — Bun monorepo parent.
-- [`../../../AGENTS-architecture.md`](../../../AGENTS-architecture.md) — overall map (R2: shared magic constants).
+- [`../../../../AGENTS-architecture.md`](../../../../AGENTS-architecture.md) — overall map (R2: shared magic constants).
 - [`../../CLAUDE.md`](../../CLAUDE.md) — coding guidelines.
