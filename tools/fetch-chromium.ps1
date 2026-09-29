@@ -171,7 +171,7 @@ Write-Log "wrote $gclientPath (cache_dir -> $cacheDirPy)"
 Write-State "bootstrap-sync" "running"
 Write-Log "=== step 1/2: gclient sync (bootstrap, ~50 GB, 1-3 h) ==="
 $bootstrapExit = Invoke-Native -Exe $Gclient `
-    -Args @("sync", "--no-history", "--shallow") -WorkDir $BuildRoot
+    -Args @("sync", "--no-history", "--shallow", "--jobs", "8") -WorkDir $BuildRoot
 Write-Log ("gclient sync exit=" + $bootstrapExit)
 if ($bootstrapExit -ne 0) {
     Write-Log "bootstrap sync failed -- see $LogFile" "ERROR"
@@ -189,6 +189,24 @@ if ($SkipTagCheckout) {
 # Step 2: move to the pinned tag, then re-sync so DEPS match that tag.
 # Syncing DEPS at main and then checking out an old tag leaves the tree with
 # the wrong dependency revisions -- the checkout and the DEPS must agree.
+#
+# NOTE: --shallow must NOT be used for this re-sync, even though the bootstrap
+# above uses it. A shallow mirror is created with a depth boundary taken from
+# the default branch, so DEPS revisions for an older tag can sit *below* that
+# boundary, and git then refuses them:
+#
+#   warning: rejected <sha> because shallow roots are not allowed to be updated
+#   error: Could not read <sha>
+#   Error: git rev-parse FETCH_HEAD returned non-zero exit status 128 in <dep>
+#
+# gclient reports that as a hard failure and stops, even though only one dep is
+# affected. --no-history alone keeps the working tree cheap while leaving the
+# mirrors deep enough to serve the pinned tag.
+#
+# --jobs 8 caps parallel fetches. gclient defaults to -j 32, which reliably
+# trips googlesource's rate limiter (HTTP 429); depot_tools then reports the
+# 429 as `git_cache.ClobberNeeded  # Corrupted cache.`, which is misleading --
+# the cache is not corrupt, the server is throttling.
 $version = Get-PinnedVersion
 if (-not $version) {
     Write-Log "could not read pinned version" "ERROR"
@@ -216,7 +234,7 @@ $head = (& git -C $SrcDir rev-parse HEAD 2>&1).ToString().Trim()
 Write-Log ("HEAD is now " + $head)
 Write-Log "re-syncing DEPS to match the tag"
 $resyncExit = Invoke-Native -Exe $Gclient `
-    -Args @("sync", "--no-history", "--shallow") -WorkDir $BuildRoot
+    -Args @("sync", "--no-history", "--jobs", "8") -WorkDir $BuildRoot
 if ($resyncExit -ne 0) {
     Write-Log "DEPS re-sync failed -- see $LogFile" "ERROR"
     Write-State "tag-checkout" "failed" "resync exit $resyncExit"
