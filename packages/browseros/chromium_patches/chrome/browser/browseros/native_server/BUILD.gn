@@ -1,0 +1,62 @@
+diff --git a/chrome/browser/browseros/native_server/BUILD.gn b/chrome/browser/browseros/native_server/BUILD.gn
+new file mode 100644
+index 0000000000000..6d8859138de92979399d8b870c27e8ad00794bc4
+--- /dev/null
++++ b/chrome/browser/browseros/native_server/BUILD.gn
+@@ -0,0 +1,56 @@
++# Copyright 2024 The Chromium Authors
++# Use of this source code is governed by a BSD-style license that can be
++# found in the LICENSE file.
++
++# Experimental, flag-gated in-process HTTP server.
++#
++# Deliberately NOT part of //chrome/browser/browseros/server. That module owns
++# a signed, shipped child process with an appcast updater. This one is an
++# experiment that should be removable in a single revert when the MCP server is
++# re-homed out of the extension, and coupling the two would make the experiment
++# inherit the sidecar's signing and update machinery.
++
++source_set("native_server") {
++  sources = [
++    "browseros_native_server.cc",
++    "browseros_native_server.h",
++  ]
++
++  deps = [
++    "//base",
++    # For browser_features.cc, which is where BASE_FEATURE(kBrowserOsNativeServer)
++    # is actually defined. Depending on //chrome/browser:browser_process instead
++    # does not work: it does not link browser_features.cc into the test binary,
++    # and it drags in most of Chromium (~40k ninja edges) for no reason. This
++    # module needs nothing else from that target.
++    "//chrome/browser:browser_features",
++    # browseros_switches.h -- the --browseros-native-server-port override.
++    "//chrome/browser/browseros/core:core",
++    # chrome::DIR_USER_DATA, for the ownership file.
++    "//chrome/common",
++    # net::HttpServer, net::TCPServerSocket.
++    "//net",
++  ]
++}
++
++# executable(), not the old test() template: at Chromium 148 there is no
++# //build/test directory and no template("test") anywhere in the tree, so
++# test() is an unknown function. executable() is a GN built-in, and
++# gtest_main supplies main() so the test file does not have to.
++# Named after the source file rather than "unit_tests": executable() writes its
++# output to the root of the out dir, and a generic name collides with another
++# unit_tests target ("Duplicate output file").
++executable("browseros_native_server_unittests") {
++  # Required: //testing/gtest is a test-only target, and a non-testonly target
++  # may not depend on one.
++  testonly = true
++
++  sources = [ "browseros_native_server_unittest.cc" ]
++
++  deps = [
++    ":native_server",
++    "//base",
++    "//testing/gtest",
++    "//testing/gtest:gtest_main",
++  ]
++}

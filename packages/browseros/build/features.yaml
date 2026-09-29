@@ -114,6 +114,11 @@ features:
       - chrome/browser/browseros/server/
       - third_party/libxml/BUILD.gn
 
+  native-server:
+    description: "feat: native in-process server on 127.0.0.1:1337, gated by the enable-browseros-native-server flag (default off). Experiment: first slice of re-homing the MCP server out of the extension and into browser code. The flag declaration (browser_features) and the about_flags entry are owned by chromium-ui-fixes, and the flag descriptions by flags - those edits are folded into those existing diffs, not repeated here. The startup hook is folded into the first-run diff (chrome_browser_main.cc)."
+    files:
+      - chrome/browser/browseros/native_server/
+
   metrics:
     description: "feat: browseros metrics"
     files:

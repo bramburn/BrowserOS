@@ -2,15 +2,17 @@ diff --git a/chrome/browser/chrome_browser_main.cc b/chrome/browser/chrome_brows
 index a8ebab6e15ac1..99ca2fdcc4e84 100644
 --- a/chrome/browser/chrome_browser_main.cc
 +++ b/chrome/browser/chrome_browser_main.cc
-@@ -10,6 +10,7 @@
+@@ -10,6 +10,9 @@
  #include <utility>
  
  #include "base/at_exit.h"
 +#include "chrome/browser/browseros/server/browseros_server_manager.h"
++#include "chrome/browser/browser_features.h"
++#include "chrome/browser/browseros/native_server/browseros_native_server.h"
  #include "base/base_switches.h"
  #include "base/check.h"
  #include "base/command_line.h"
-@@ -1261,6 +1262,7 @@ int ChromeBrowserMainParts::PreCreateThreadsImpl() {
+@@ -1261,6 +1264,7 @@ int ChromeBrowserMainParts::PreCreateThreadsImpl() {
    if (first_run::IsChromeFirstRun()) {
      if (!base::CommandLine::ForCurrentProcess()->HasSwitch(switches::kApp) &&
          !base::CommandLine::ForCurrentProcess()->HasSwitch(switches::kAppId)) {
@@ -18,7 +20,7 @@ index a8ebab6e15ac1..99ca2fdcc4e84 100644
        browser_creator_->AddFirstRunTabs(master_prefs_->new_tabs);
      }
    }
-@@ -1280,6 +1282,43 @@ int ChromeBrowserMainParts::PreCreateThreadsImpl() {
+@@ -1280,6 +1284,43 @@ int ChromeBrowserMainParts::PreCreateThreadsImpl() {
    }
  #endif
  
@@ -62,7 +64,7 @@ index a8ebab6e15ac1..99ca2fdcc4e84 100644
  #if BUILDFLAG(IS_MAC)
  #if defined(ARCH_CPU_X86_64)
    // The use of Rosetta to run the x64 version of Chromium on Arm is neither
-@@ -1887,6 +1926,12 @@ int ChromeBrowserMainParts::PreMainMessageLoopRunImpl() {
+@@ -1887,6 +1928,19 @@ int ChromeBrowserMainParts::PreMainMessageLoopRunImpl() {
      g_browser_process->CreateDevToolsAutoOpener();
    }
  
@@ -72,10 +74,17 @@ index a8ebab6e15ac1..99ca2fdcc4e84 100644
 +  LOG(INFO) << "browseros: Starting BrowserOS server process";
 +  browseros::BrowserOSServerManager::GetInstance()->Start();
 +
++  // BrowserOS: Start the experimental native in-process server on
++  // 127.0.0.1:1337. Gated by the enable-browseros-native-server flag, which
++  // is off by default; the call is a no-op while the flag is off.
++  if (base::FeatureList::IsEnabled(features::kBrowserOsNativeServer)) {
++    browseros::BrowserOsNativeServer::GetInstance()->Start();
++  }
++
    // Needs to be done before PostProfileInit, since the SODA Installer setup is
    // called inside PostProfileInit and depends on it.
    if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
-@@ -2175,6 +2220,11 @@ void ChromeBrowserMainParts::PostMainMessageLoopRun() {
+@@ -2175,6 +2229,16 @@ void ChromeBrowserMainParts::PostMainMessageLoopRun() {
      chrome_extra_part->PostMainMessageLoopRun();
    }
  
@@ -83,6 +92,11 @@ index a8ebab6e15ac1..99ca2fdcc4e84 100644
 +  // BrowserOS: Stop the BrowserOS server during shutdown
 +  LOG(INFO) << "browseros: Stopping BrowserOS server process";
 +  browseros::BrowserOSServerManager::GetInstance()->Shutdown();
++  // BrowserOS: Stop the native in-process server and release the port so a
++  // second browser instance can take it over.
++  if (base::FeatureList::IsEnabled(features::kBrowserOsNativeServer)) {
++    browseros::BrowserOsNativeServer::GetInstance()->Stop();
++  }
 +
    TranslateService::Shutdown();
  

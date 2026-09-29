@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000000000..7ac2f2f44fd1d
 --- /dev/null
 +++ b/chrome/browser/browseros/core/browseros_switches.h
-@@ -0,0 +1,89 @@
+@@ -0,0 +1,92 @@
 +// Copyright 2024 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -47,6 +47,9 @@ index 0000000000000..7ac2f2f44fd1d
 +
 +// Overrides the Extension server port.
 +inline constexpr char kExtensionPort[] = "browseros-extension-port";
++
++// Overrides the port for the experimental native in-process server.
++inline constexpr char kNativeServerPort[] = "browseros-native-server-port";
 +
 +// === Extension Switches ===
 +
