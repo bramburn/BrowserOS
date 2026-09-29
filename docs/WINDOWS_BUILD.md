@@ -60,11 +60,13 @@ version. Either satisfies the C++ workload.
 & D:\BrowserOs\tools\bramburn-build.ps1 -StopAfterPhase 5
 ```
 
-Run it detached; the bash tool's 5-minute ceiling will kill it otherwise:
+Run it detached; the bash tool's 5-minute ceiling will kill it otherwise.
+`powershell.exe -File` is required — handing a `.ps1` to `python.exe` makes
+Python try to parse it as Python and die immediately:
 
 ```powershell
-Start-Process -FilePath "C:\Python312\python.exe" `
-  -ArgumentList "D:\BrowserOs\tools\bramburn-build.ps1" -StopAfterPhase 3 `
+Start-Process -FilePath "powershell.exe" `
+  -ArgumentList "-NoProfile","-ExecutionPolicy","Bypass","-File","D:\BrowserOs\tools\bramburn-build.ps1","-StopAfterPhase","3" `
   -WindowStyle Hidden `
   -RedirectStandardOutput "D:\browseros-build\logs\build-stdout.log" `
   -RedirectStandardError  "D:\browseros-build\logs\build-stderr.log"
@@ -126,6 +128,58 @@ turns a completed fetch into hours of redundant downloading.
 `out/` directory and no local modifications under the patched paths. A dirty
 tree still gets the full clean, so rebuild behaviour is unchanged. If
 `git status` fails, it conservatively assumes dirty and cleans anyway.
+
+### 5. `chromium.googlesource.com` returns HTTP 503 from this host
+
+**This blocks `gclient sync`, and therefore blocks the entire build.** Observed
+2026-09-28, repeatedly, on every path and via two independent HTTP clients:
+
+```
+https://chromium.googlesource.com/                                     -> 503
+https://chromium.googlesource.com/chromium/src/+/refs/tags/148.0.7778.97/VERSION?format=TEXT -> 503
+https://chromium.googlesource.com/chromium/src/+/6b3fa66a.../chrome/browser/about_flags.cc?format=TEXT -> 503
+```
+
+Not a proxy problem and not local: `netsh winhttp show proxy` reports direct
+access, `www.google.com` returns 200, and
+`raw.githubusercontent.com/chromium/chromium/148.0.7778.97/...` serves the
+same release tag fine. It is googlesource specifically.
+
+**The GitHub mirror is not a workaround for a build.** Cloning `src` from
+`https://github.com/chromium/chromium.git` would work, but Chromium's `DEPS`
+points every dependency at `chromium.googlesource.com`, so `gclient sync`
+would still fail on the first few hundred dep clones. There is no supported
+way to redirect DEPS URLs to the mirror.
+
+Options, in order of preference:
+
+1. **Wait it out** and re-probe before assuming it is permanent:
+   ```powershell
+   Invoke-WebRequest -Uri "https://chromium.googlesource.com/" -UseBasicParsing
+   ```
+2. **Use a build host with access** — the Linux LAN box in
+   [`AGENTS-ubuntu-dev.md`](../AGENTS-ubuntu-dev.md), or a cloud VM. This is
+   what the WSL teardown already pushed toward.
+3. **Single-file fetches still work** via the GitHub mirror, which is enough
+   to answer API and guard questions without a tree — this is what
+   `tools/verify-fetch-sources.ps1` does.
+
+### Verifying against real sources without a tree
+
+A full 50 GB sync is not needed to answer "does this API exist at 148" or
+"which `#if` guard encloses this line". `tools/verify-fetch-sources.ps1` pulls
+individual files from the GitHub mirror at the pinned tag into
+`D:\browseros-build\verify\`, mirroring the Chromium tree layout:
+
+```powershell
+& .\tools\verify-fetch-sources.ps1
+```
+
+It fetches 16 files in a few seconds. `chrome/VERSION` from the mirror is
+byte-identical to `packages/browseros/CHROMIUM_VERSION`, so the tag is the
+right one. This found two compile blockers in the native-server implementation
+that header review had missed — see the Verification status section of
+[`../plan/feature-gating-and-native-server.md`](../plan/feature-gating-and-native-server.md).
 
 ## Known risks
 

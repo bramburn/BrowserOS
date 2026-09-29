@@ -1,10 +1,14 @@
 # Plan — Feature gating + native localhost server
 
-> **Status:** proposal, not implemented. Nothing here has been built or run.
-> The Chromium tree is still not on disk (see
-> [`docs/WINDOWS_BUILD.md`](../docs/WINDOWS_BUILD.md)), so Chromium-side
-> signatures are **unverified at `148.0.7778.97`**. See
-> [Verification gaps](#verification-gaps).
+> **Status:** Part 1 and Part 2 are **implemented and compiled**. The Chromium
+> tree is at the pinned commit, all 346 BrowserOS patches apply to it, and
+> `browseros_native_server.cc` builds with zero errors and zero warnings under
+> clang-cl at 148.0.7778.97. The 15 unit tests pass. See
+> [Verification status](#verification-status).
+>
+> **Not yet done:** the full `chrome.exe` link has not been run, and the flag
+> has not been observed in a live browser — which is still the one check that
+> would catch this feature being silently dead.
 >
 > **Scope:** Windows. Other OSes deferred until the Windows build is green.
 >
@@ -373,22 +377,73 @@ Chromium version) before layering lifecycle machinery on top.
 The singleton and crash-containment rows are the two that actually prove the
 requirements; treat them as release blockers, not nice-to-haves.
 
-## Verification gaps
+## Verification status
 
-Honest limits:
+Verified against a real tree: `D:\browseros-build\src` at `6b3fa66a…`
+(= `BASE_COMMIT`, `chrome/VERSION` = 148.0.7778.97), DEPS synced, all patches
+applied, clang-cl 148.
 
-- **The Chromium tree is not on disk.** `net::HttpServer`, `base::File::Lock`,
-  `base::Thread` + `MessagePumpForIO`, and the exact `ERR_ADDRESS_IN_USE`
-  plumbing are all inferred from the working `BrowserOSServerProxy` and
-  `BrowserOSServerManager` in this repo, **not read from the tree.** The
-  proxy-shaped HTTP parts are the most trustworthy; the watchdog and thread
-  ownership are the most speculative.
-- Ownership of `chrome_browser_main.cc` was not verified this pass. Check
-  before assuming a startup hook is free.
-- Port `1337` is taken as given; no conflict check has been run against
-  whatever may already listen on it on this machine.
-- The exact `BASE_FEATURE` macro form and where the `kFeatureEntries[]` array
-  sits in `about_flags.cc` at this version are unconfirmed — the diff context
-  shows line ~10898 and an `#endif`, but the surrounding guards are not read.
-- Nothing here has been built, run, or measured. `/health` uptime and
-  restart behaviour are design targets, not observations.
+| check | result |
+|---|---|
+| Tree at the pinned commit | yes — `6b3fa66a…`, matches `BASE_COMMIT` |
+| All BrowserOS patches apply | **346/346**, zero failures |
+| Tree state == patch set (`git apply --reverse --check`) | 346/346, zero mismatches |
+| Hunk headers vs hunk bodies | 346 files, zero bad |
+| No Chromium file claimed twice in `features.yaml` | 312 claimed, zero collisions |
+| `gn gen` | passes, 28,625 targets from 4,584 files |
+| `browseros_native_server.cc` compiles | **clean** — zero errors, zero warnings |
+| Unit tests | **15/15 pass** |
+
+Route table, `Origin` rejection, 404/405/413, and the loopback / port /
+connection-limit invariants are all covered by executed tests.
+
+### API facts established at 148 (all were wrong or unknown before)
+
+- `base::SyncEvent` is **gone**. Use `base::WaitableEvent` (same
+  `Signal()`/`Wait()` surface).
+- `base::BindOnce` **refuses raw pointer receivers**: *"Receivers may not be
+  raw pointers… use base::Unretained() and document why it's safe."* Binding a
+  `base::WeakPtr` receiver is fine.
+- `base::OnceCallback` has **no template constructor from an arbitrary
+  callable**, so a raw lambda cannot be posted. Wrap a *member function* in
+  `base::BindOnce`.
+- `base::BindLambda` / `base::BindRepeatingTask` do not exist; only
+  `BindOnce` and `BindRepeating`.
+- `base::Thread` has no `Options` constructor — use
+  `StartWithOptions(Options(MessagePumpType::IO, 0))`, which is also required:
+  `net::HttpServer`'s socket watchers need an IO pump. `base::Thread` has no
+  `PostTask` either; post via `task_runner()`.
+- `base::ScopedAllowBlocking` is **friend-gated** in
+  `base/threading/thread_restrictions.h` — the existing manager only gets it
+  because BrowserOS patched itself in as a friend. The public alternative is
+  `base::ScopedBlockingCall(FROM_HERE, base::BlockingType::WILL_BLOCK)`, which
+  avoids touching a patch owned by another feature block.
+- `base::GetCurrentProcessId()` does not exist. Use
+  `base::Process::Current().Pid()`.
+- `base::Time::ToDeltaSinceUnixEpoch()` is now
+  `ToDeltaSinceWindowsEpoch()`.
+- `WeakPtrFactory` must be the **last** class member (enforced by a style
+  check).
+
+### GN facts at 148
+
+- `test()` no longer exists — there is no `//build/test` directory and no
+  `template("test")` in the tree. Use `executable()` with `testonly = true`;
+  the name must be specific because `executable()` writes to the out root.
+- The feature symbol is defined in `//chrome/browser:browser_features`.
+  Depending on `//chrome/browser:browser_process` does **not** link it, and
+  costs ~40k ninja edges.
+
+### Still unverified
+
+- **The full `chrome.exe` link has not been run.** Only
+  `native_server:native_server` and the test executable were built.
+- **The flag has never been observed in a running browser.** Rule 7 is
+  unproven: nothing yet demonstrates the server starts, binds 1337, and that
+  disabling the flag makes it observably absent. This is the check that would
+  catch the whole feature being silently dead.
+- Port `1337` availability is still assumed, not measured on this machine.
+- The watchdog's restart and give-up paths are compiled but never executed —
+  no test drives a wedged thread.
+
+
