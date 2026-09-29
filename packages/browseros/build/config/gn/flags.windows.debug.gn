@@ -1,7 +1,11 @@
 # Windows Debug Build Configuration
 # Matching macOS feature set
 is_debug = true
-is_component_build = true
+# Must be false on Windows. With a component build, linking
+# third_party_abseil-cpp_absl.dll fails with `std::__Cr::` undefined symbols:
+# abseil objects cross the DLL boundary carrying MSVC STL types that the
+# component runtime does not export. Verified against Chromium 148.
+is_component_build = false
 symbol_level = 0
 chrome_pgo_phase = 0
 is_official_build = false
@@ -14,7 +18,14 @@ v8_symbol_level = 0
 
 # Windows-specific compiler/linker settings
 target_cpu = "x64"
-use_custom_libcxx = false
+# NOTE: deliberately NOT setting use_custom_libcxx = false.
+# Forcing it off swaps Chromium's bundled libc++ for MSVC's STL, which breaks
+# two things: stock Chromium headers that rely on transitive <string>/<vector>
+# includes stop compiling (e.g. net/tools/transport_security_state_generator/
+# cert_util.h), and v8/BUILD.gn asserts that the sandbox needs hardened libc++.
+# Leaving the default (true) fixes both. Chromium's own deprecation warning
+# about use_custom_libcxx is about the value being *false* on platforms that
+# require the in-tree libc++; the Windows default is already true.
 use_lld = true
 dcheck_always_on = true
 
